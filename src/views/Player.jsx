@@ -10,7 +10,15 @@ import {
 } from '../lib/hooks.js'
 import Board from '../components/Board.jsx'
 import Keyboard from '../components/Keyboard.jsx'
-import { Logo, ConfirmButton, ModeBadge, Spinner } from '../components/common.jsx'
+import HostConsole from '../components/HostConsole.jsx'
+import {
+  Logo,
+  Avatar,
+  ConfirmButton,
+  ModeBadge,
+  Spinner,
+  fileToAvatar,
+} from '../components/common.jsx'
 
 export default function Player() {
   const { state, ready, actions } = useGame()
@@ -34,20 +42,34 @@ export default function Player() {
 
   if (!ready) return <Spinner />
   const me = state.players[myId]
-  return me ? (
-    <GameScreen s={state} actions={actions} myId={myId} me={me} />
-  ) : (
-    <JoinScreen
-      onJoin={(name) => {
-        saveName(name)
-        actions.joinPlayer(myId, name)
-      }}
-    />
+
+  if (!me)
+    return (
+      <JoinScreen
+        onJoin={(name, photo) => {
+          saveName(name)
+          actions.joinPlayer(myId, name, photo)
+        }}
+      />
+    )
+
+  const offered = state.handover?.toId === myId
+  return (
+    <>
+      {offered && <HandoverModal actions={actions} myId={myId} />}
+      {state.hostId === myId ? (
+        <HostMode s={state} me={me} myId={myId} actions={actions} />
+      ) : (
+        <GameScreen s={state} actions={actions} myId={myId} me={me} />
+      )}
+    </>
   )
 }
 
 function JoinScreen({ onJoin }) {
   const [name, setName] = useState(getSavedName())
+  const [photo, setPhoto] = useState(null)
+  const fileRef = useRef(null)
   const ok = name.trim().length >= 2
   return (
     <div className="home">
@@ -57,22 +79,97 @@ function JoinScreen({ onJoin }) {
         className="join-form"
         onSubmit={(e) => {
           e.preventDefault()
-          if (ok) onJoin(name.trim().slice(0, 16))
+          if (ok) onJoin(name.trim().slice(0, 16), photo)
         }}
       >
+        <button
+          type="button"
+          className="avatar-pick"
+          onClick={() => fileRef.current?.click()}
+        >
+          {photo ? (
+            <img src={photo} alt="" className="avatar" style={{ width: 96, height: 96 }} />
+          ) : (
+            <span className="avatar-pick-empty">📷</span>
+          )}
+          <span className="avatar-pick-label">
+            {photo ? 'zmień zdjęcie' : 'zrób sobie zdjęcie (opcjonalnie)'}
+          </span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="user"
+          hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0]
+            if (f) setPhoto(await fileToAvatar(f))
+            e.target.value = ''
+          }}
+        />
         <input
           className="input input--join"
           value={name}
           maxLength={16}
           onChange={(e) => setName(e.target.value)}
           placeholder="Twoje imię…"
-          autoFocus
         />
         <button className="btn btn--primary btn--big" disabled={!ok}>
           Dołącz do gry
         </button>
       </form>
       <ModeBadge />
+    </div>
+  )
+}
+
+// Propozycja przejęcia prowadzenia — pełnoekranowy modal
+function HandoverModal({ actions, myId }) {
+  useEffect(() => {
+    try {
+      navigator.vibrate?.([150, 80, 150])
+    } catch { /* ignore */ }
+  }, [])
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-emoji">🎩</div>
+        <h2>Przejmiesz prowadzenie?</h2>
+        <p>
+          Wpiszesz następne hasło i będziesz wybierać, kto odpowiada. W tej
+          rundzie nie zgadujesz (znasz hasło 😉). Punkty wszystkich zostają.
+        </p>
+        <button className="btn btn--primary btn--big" onClick={() => actions.acceptHost(myId)}>
+          ✅ Jasne, prowadzę!
+        </button>
+        <button className="btn btn--ghost" onClick={() => actions.declineHost(myId)}>
+          Nie, dzięki
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Gracz z pilotem — pełny panel prowadzącego
+function HostMode({ s, me, myId, actions }) {
+  return (
+    <div className="page admin">
+      <header className="page-header">
+        <Link to="/" className="back-link">‹</Link>
+        <Logo small />
+        <span className="player-me">
+          <Avatar player={me} size={28} /> 🎩 {me.name} ·{' '}
+          <b key={me.score} className="score-bump">{me.score || 0} pkt</b>
+        </span>
+        <ModeBadge />
+      </header>
+      {s.status === 'idle' && (
+        <div className="status-strip status-strip--turn">
+          🎩 Prowadzisz! Wpisz hasło i wybieraj, kto odpowiada.
+        </div>
+      )}
+      <HostConsole hostId={myId} />
     </div>
   )
 }
@@ -85,6 +182,7 @@ function GameScreen({ s, actions, myId, me }) {
     feedback && feedback.playerId === myId && ['hit', 'miss'].includes(feedback.type)
       ? feedback
       : null
+  const fileRef = useRef(null)
 
   // Wibracja, gdy dostajesz turę
   useEffect(() => {
@@ -101,46 +199,67 @@ function GameScreen({ s, actions, myId, me }) {
         <Link to="/" className="back-link">‹</Link>
         <Logo small />
         <span className="player-me">
+          <button type="button" className="avatar-btn" onClick={() => fileRef.current?.click()} title="Zmień zdjęcie">
+            <Avatar player={me} size={30} />
+          </button>{' '}
           {me.name} · <b key={me.score} className="score-bump">{me.score || 0} pkt</b>
         </span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="user"
+          hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0]
+            if (f) actions.setPhoto(myId, await fileToAvatar(f))
+            e.target.value = ''
+          }}
+        />
         <ModeBadge />
       </header>
 
-      <StatusStrip s={s} myTurn={myTurn} myId={myId} activeName={activeName} />
+      {s.status === 'over' ? (
+        <PlayerOver s={s} myId={myId} />
+      ) : (
+        <>
+          <StatusStrip s={s} myTurn={myTurn} myId={myId} activeName={activeName} />
 
-      {s.category && s.status !== 'idle' && (
-        <div className="player-category">
-          <span className="chip">{s.category}</span>
-        </div>
-      )}
+          {s.category && s.status !== 'idle' && (
+            <div className="player-category">
+              <span className="chip">{s.category}</span>
+            </div>
+          )}
 
-      <Board
-        phrase={s.status === 'idle' ? '' : s.phrase}
-        revealed={s.revealed}
-        lastAction={s.lastAction}
-        size="mini"
-      />
+          <Board
+            phrase={s.status === 'idle' ? '' : s.phrase}
+            revealed={s.revealed}
+            lastAction={s.lastAction}
+            size="mini"
+          />
 
-      <div className="player-kbd">
-        {myFeedback && (
-          <div
-            className={`guess-feedback ${
-              myFeedback.type === 'hit' ? 'guess-feedback--hit' : 'guess-feedback--miss'
-            }`}
-          >
-            {myFeedback.type === 'hit'
-              ? `🎉 ${myFeedback.letter} ×${myFeedback.count} · +${myFeedback.count * 10} pkt!`
-              : `✗ Nie ma litery ${myFeedback.letter}`}
+          <div className="player-kbd">
+            {myFeedback && (
+              <div
+                className={`guess-feedback ${
+                  myFeedback.type === 'hit' ? 'guess-feedback--hit' : 'guess-feedback--miss'
+                }`}
+              >
+                {myFeedback.type === 'hit'
+                  ? `🎉 ${myFeedback.letter} ×${myFeedback.count} · +${myFeedback.count * 10} pkt!`
+                  : `✗ Nie ma litery ${myFeedback.letter}`}
+              </div>
+            )}
+            <Keyboard
+              used={s.used}
+              disabled={!myTurn}
+              onPick={(L) => actions.guessLetter(L, myId)}
+            />
           </div>
-        )}
-        <Keyboard
-          used={s.used}
-          disabled={!myTurn}
-          onPick={(L) => actions.guessLetter(L, myId)}
-        />
-      </div>
 
-      <Leaderboard s={s} myId={myId} />
+          <Leaderboard s={s} myId={myId} />
+        </>
+      )}
 
       <footer className="player-footer">
         <ConfirmButton
@@ -154,6 +273,22 @@ function GameScreen({ s, actions, myId, me }) {
         />
       </footer>
     </div>
+  )
+}
+
+function PlayerOver({ s, myId }) {
+  const players = sortedPlayers(s.players)
+  const myRank = players.findIndex((p) => p.id === myId) + 1
+  return (
+    <>
+      <div className="status-strip status-strip--win">
+        🏁 Koniec gry! {myRank === 1 ? 'Wygrywasz! 🏆' : `Twoje miejsce: ${myRank}.`}
+      </div>
+      <Leaderboard s={s} myId={myId} />
+      <p className="hint" style={{ textAlign: 'center' }}>
+        Podium jest na telewizorze. Czekaj na nową grę…
+      </p>
+    </>
   )
 }
 
@@ -201,7 +336,10 @@ function Leaderboard({ s, myId }) {
           }`}
         >
           <span className="lb-rank">{medals[i] || `${i + 1}.`}</span>
-          <span className="lb-name">{p.name}</span>
+          <Avatar player={p} size={26} />
+          <span className="lb-name">
+            {p.id === s.hostId ? '🎩 ' : ''}{p.name}
+          </span>
           <span className="lb-score">{p.score || 0}</span>
         </div>
       ))}

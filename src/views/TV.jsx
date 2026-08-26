@@ -4,16 +4,18 @@ import { useGame, sortedPlayers } from '../lib/store.jsx'
 import { useFreshAction } from '../lib/hooks.js'
 import { ALPHABET } from '../lib/alphabet.js'
 import Board from '../components/Board.jsx'
-import { Logo, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
+import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 export default function TV() {
   const { state, ready } = useGame()
   useWakeLock()
-  useConfetti(ready && state.status === 'finished')
+  useConfetti(ready && (state.status === 'finished' || state.status === 'over'))
 
   if (!ready) return <Spinner />
   const s = state
   const players = sortedPlayers(s.players)
+
+  if (s.status === 'over') return <TVOver s={s} players={players} />
 
   return (
     <div className="tv">
@@ -63,6 +65,10 @@ export default function TV() {
               {s.activePlayerId === p.id && (
                 <span className="tv-player-mic">🎤 odpowiada</span>
               )}
+              {s.hostId === p.id && (
+                <span className="tv-player-mic tv-player-host">🎩 prowadzi</span>
+              )}
+              <Avatar player={p} size="min(3.4vw, 4.8vh)" />
               <span className="tv-player-name">
                 {['🥇', '🥈', '🥉'][i] || ''} {p.name}
               </span>
@@ -80,6 +86,54 @@ export default function TV() {
           <span>dołącz</span>
         </div>
       )}
+    </div>
+  )
+}
+
+// ——— Podium na koniec gry ———
+function TVOver({ s, players }) {
+  const top = players.slice(0, 3)
+  const rest = players.slice(3)
+  // kolejność wizualna: 2. | 1. | 3.
+  const order = [top[1], top[0], top[2]].filter(Boolean)
+  return (
+    <div className="tv">
+      <header className="tv-header">
+        <Logo small />
+        <div className="tv-header-right">
+          <ModeBadge />
+          <FullscreenButton />
+        </div>
+      </header>
+      <div className="tv-over">
+        <h1 className="tv-over-title">🏁 KONIEC GRY!</h1>
+        <div className="podium">
+          {order.map((p) => {
+            const place = players.indexOf(p) + 1
+            return (
+              <div key={p.id} className={`podium-col podium-col--${place}`}>
+                <Avatar
+                  player={p}
+                  size={place === 1 ? 'min(10vw, 15vh)' : 'min(7.5vw, 11vh)'}
+                />
+                <span className="podium-name">{p.name}</span>
+                <span className="podium-score">{p.score || 0} pkt</span>
+                <div className={`podium-base podium-base--${place}`}>{place}</div>
+              </div>
+            )
+          })}
+        </div>
+        {rest.length > 0 && (
+          <div className="tv-over-rest">
+            {rest.map((p, i) => (
+              <span key={p.id} className="chip chip--muted">
+                {i + 4}. <Avatar player={p} size="min(2.2vw, 3vh)" /> {p.name} · {p.score || 0}
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="tv-over-hint">Brawa dla wszystkich! 👏 Gospodarz może zacząć nową grę.</p>
+      </div>
     </div>
   )
 }
@@ -102,6 +156,14 @@ function tickerText(a, players) {
       return `🏆 ${name ?? '…'} zgaduje hasło! +100 pkt`
     case 'end':
       return '🎉 Hasło odsłonięte!'
+    case 'host':
+      return name
+        ? `🎩 Prowadzenie przejmuje: ${name}!`
+        : '🎩 Prowadzenie wraca do gospodarza'
+    case 'hostDecline':
+      return `😅 ${name ?? 'Ktoś'} nie chce prowadzić`
+    case 'gameover':
+      return '🏁 Koniec gry!'
     case 'reset':
       return '⏳ Za chwilę nowe hasło…'
     default:
@@ -120,7 +182,7 @@ function IdleOverlay({ players }) {
           <div className="tv-idle-players">
             {players.map((p) => (
               <span key={p.id} className="chip">
-                {p.name}
+                <Avatar player={p} size={20} /> {p.name}
               </span>
             ))}
           </div>
@@ -148,7 +210,8 @@ function WinnerBanner({ s }) {
     <div className="tv-winner">
       {winner ? (
         <>
-          🏆 WYGRYWA <b>{winner.name}</b>! <span className="tv-winner-pts">+100 pkt</span>
+          <Avatar player={winner} size="min(4vw, 5.5vh)" /> 🏆 WYGRYWA{' '}
+          <b>{winner.name}</b>! <span className="tv-winner-pts">+100 pkt</span>
         </>
       ) : (
         <>🎉 HASŁO ODGADNIĘTE!</>

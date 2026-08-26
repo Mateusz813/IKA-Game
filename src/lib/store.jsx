@@ -18,6 +18,8 @@ const EMPTY = {
   players: {}, // id -> { name, score, joinedAt, online }
   activePlayerId: null,
   winnerId: null,
+  hostId: null, // null = prowadzi gospodarz (urządzenie /admin), inaczej id gracza
+  handover: null, // { toId, ts } — oczekująca propozycja przejęcia prowadzenia
   lastAction: null, // { type, letter, count, playerId, ts }
   round: 0,
 }
@@ -82,11 +84,11 @@ function makeActions(get) {
       })
     },
 
-    // playerId=null oznacza ruch admina (punkty idą do aktywnego gracza, jeśli jest)
+    // playerId=null oznacza ruch prowadzącego (punkty idą do aktywnego gracza, jeśli jest)
     guessLetter(letter, playerId = null) {
       const s = get()
       if (s.status !== 'playing' || s.used[letter]) return
-      if (playerId && s.activePlayerId !== playerId) return
+      if (playerId && (s.activePlayerId !== playerId || s.hostId === playerId)) return
       const credit = playerId || s.activePlayerId
       const count = countLetter(s.phrase, letter)
       const hit = count > 0
@@ -109,7 +111,8 @@ function makeActions(get) {
     },
 
     grantTurn(id) {
-      if (get().status !== 'playing') return
+      const s = get()
+      if (s.status !== 'playing' || id === s.hostId) return
       sync.update({
         activePlayerId: id,
         lastAction: { type: 'turn', playerId: id, ts: now() },
@@ -122,7 +125,7 @@ function makeActions(get) {
 
     awardPhrase(id) {
       const s = get()
-      if (!s.players[id]) return
+      if (!s.players[id] || s.status !== 'playing' || id === s.hostId) return
       const u = {
         status: 'finished',
         winnerId: id,
@@ -154,8 +157,104 @@ function makeActions(get) {
         used: null,
         activePlayerId: null,
         winnerId: null,
+        handover: null,
         lastAction: { type: 'reset', ts: now() },
       })
+    },
+
+    // ——— przekazywanie prowadzenia ———
+    offerHost(toId) {
+      if (!get().players[toId]) return
+      sync.update({ handover: { toId, ts: now() } })
+    },
+
+    cancelOffer() {
+      sync.update({ handover: null })
+    },
+
+    acceptHost(playerId) {
+      const s = get()
+      if (s.handover?.toId !== playerId) return
+      sync.update({
+        hostId: playerId,
+        handover: null,
+        status: 'idle',
+        phrase: '',
+        category: '',
+        revealed: null,
+        used: null,
+        activePlayerId: null,
+        winnerId: null,
+        lastAction: { type: 'host', playerId, ts: now() },
+      })
+    },
+
+    declineHost(playerId) {
+      const s = get()
+      if (s.handover?.toId !== playerId) return
+      sync.update({
+        handover: null,
+        lastAction: { type: 'hostDecline', playerId, ts: now() },
+      })
+    },
+
+    // gospodarz (urządzenie /admin) odbiera pilota — gra toczy się dalej
+    reclaimHost() {
+      sync.update({
+        hostId: null,
+        handover: null,
+        lastAction: { type: 'host', playerId: null, ts: now() },
+      })
+    },
+
+    // ——— koniec gry: podium na TV ———
+    endGame() {
+      const s = get()
+      const u = {
+        status: 'over',
+        activePlayerId: null,
+        handover: null,
+        hostId: null,
+        lastAction: { type: 'gameover', ts: now() },
+      }
+      if (s.phrase) phraseLetters(s.phrase).forEach((L) => (u['revealed/' + L] = true))
+      sync.update(u)
+    },
+
+    // pełny reset do samego początku — czyści też graczy
+    resetAll() {
+      sync.update({
+        status: 'idle',
+        phrase: '',
+        category: '',
+        revealed: null,
+        used: null,
+        players: null,
+        activePlayerId: null,
+        winnerId: null,
+        hostId: null,
+        handover: null,
+        round: 0,
+        lastAction: { type: 'reset', ts: now() },
+      })
+    },
+
+    // nowa gra od zera (punkty wyzerowane, gracze zostają)
+    newGame() {
+      const u = {
+        status: 'idle',
+        phrase: '',
+        category: '',
+        revealed: null,
+        used: null,
+        activePlayerId: null,
+        winnerId: null,
+        handover: null,
+        round: 0,
+        lastAction: { type: 'reset', ts: now() },
+      }
+      Object.keys(get().players).forEach((id) => (u['players/' + id + '/score'] = 0))
+      sync.update(u)
     },
 
     resetScores() {
@@ -166,22 +265,31 @@ function makeActions(get) {
       sync.update(u)
     },
 
-    joinPlayer(id, name) {
+    joinPlayer(id, name, photo = null) {
       const existing = get().players[id]
+      const keptPhoto = photo || existing?.photo
       sync.update({
         ['players/' + id]: {
           name,
           score: existing?.score || 0,
           joinedAt: existing?.joinedAt || now(),
           online: true,
+          ...(keptPhoto ? { photo: keptPhoto } : {}),
         },
       })
       sync.presence?.(id)
     },
 
+    setPhoto(id, photo) {
+      sync.update({ ['players/' + id + '/photo']: photo || null })
+    },
+
     removePlayer(id) {
+      const s = get()
       const u = { ['players/' + id]: null }
-      if (get().activePlayerId === id) u.activePlayerId = null
+      if (s.activePlayerId === id) u.activePlayerId = null
+      if (s.hostId === id) u.hostId = null
+      if (s.handover?.toId === id) u.handover = null
       sync.update(u)
     },
   }

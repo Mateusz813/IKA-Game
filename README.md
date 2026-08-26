@@ -12,7 +12,9 @@ Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **prowadzący s
    - Pudło → czerwony ✗ na TV, tura wraca do prowadzącego.
    - Prowadzący może też **sam klikać litery** (np. gdy ktoś bez telefonu podaje literę na głos) — punkty dostaje gracz, który aktualnie ma turę (jeśli jest).
 5. Gdy ktoś odgadnie całe hasło na głos, prowadzący klika przy nim **🏆** → gracz dostaje **100 pkt**, hasło się odsłania, konfetti 🎉.
-6. **Nowa runda** zachowuje graczy i punkty — gracie do woli, wygrywa ten, kto uzbiera najwięcej.
+6. Po zakończonym haśle prowadzący wybiera: **prowadzi dalej** (wpisuje nowe hasło) albo **przekazuje pilota** wybranemu graczowi. Wybrany dostaje na telefonie pytanie, czy akceptuje — po akceptacji to on wpisuje hasło i wyznacza odpowiadających. Punkty cały czas się kumulują. Gospodarz (`/admin`) zawsze może odebrać prowadzenie.
+7. Gracze mogą przy dołączaniu **zrobić sobie zdjęcie** (avatar) — pokazuje się na TV, w rankingach i na podium. Bez zdjęcia — kolorowe kółko z inicjałami.
+8. Przycisk **🏁 Zakończ grę** u gospodarza pokazuje na TV **podium** (top 3 + reszta stawki) z avatarami i punktami. Potem: gra dalej z punktami, nowa gra od zera albo **⏮ pełny reset od początku** (usuwa też graczy).
 
 ## Uruchomienie lokalne
 
