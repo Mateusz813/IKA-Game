@@ -186,6 +186,26 @@ function makeActions(get) {
         used: null,
         activePlayerId: null,
         winnerId: null,
+        ['players/' + playerId + '/hostedAt']: now(),
+        lastAction: { type: 'host', playerId, ts: now() },
+      })
+    },
+
+    // gracz sam przejmuje pilota, gdy nikt nie prowadzi (start gry / po rundzie)
+    claimHost(playerId) {
+      const s = get()
+      if (!s.players[playerId] || s.hostId || s.status === 'playing') return
+      sync.update({
+        hostId: playerId,
+        handover: null,
+        status: 'idle',
+        phrase: '',
+        category: '',
+        revealed: null,
+        used: null,
+        activePlayerId: null,
+        winnerId: null,
+        ['players/' + playerId + '/hostedAt']: now(),
         lastAction: { type: 'host', playerId, ts: now() },
       })
     },

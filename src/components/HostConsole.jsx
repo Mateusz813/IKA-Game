@@ -110,7 +110,10 @@ function HandoverCard({ s, actions, hostId }) {
   const fresh = useFreshAction(s.lastAction, 6000)
   const declinedBy =
     fresh?.type === 'hostDecline' ? s.players[fresh.playerId]?.name : null
-  const candidates = sortedPlayers(s.players).filter((p) => p.id !== hostId)
+  // rotacja: pierwszy w kolejce jest ten, kto najdawniej (lub nigdy) nie prowadził
+  const candidates = sortedPlayers(s.players)
+    .filter((p) => p.id !== hostId)
+    .sort((a, b) => (a.hostedAt || 0) - (b.hostedAt || 0) || a.joinedAt - b.joinedAt)
 
   if (s.handover) {
     const name = s.players[s.handover.toId]?.name || '…'
@@ -135,10 +138,15 @@ function HandoverCard({ s, actions, hostId }) {
       </button>
       {candidates.length > 0 && (
         <>
-          <p className="hint">…albo przekaż pilota:</p>
+          <p className="hint">…albo przekaż pilota (▶ = kolej według rotacji):</p>
           <div className="handover-chips">
-            {candidates.map((p) => (
-              <button key={p.id} className="btn" onClick={() => actions.offerHost(p.id)}>
+            {candidates.map((p, i) => (
+              <button
+                key={p.id}
+                className={`btn ${i === 0 ? 'btn--primary' : ''}`}
+                onClick={() => actions.offerHost(p.id)}
+              >
+                {i === 0 ? '▶ ' : ''}
                 <Avatar player={p} size={22} /> {p.name}
               </button>
             ))}

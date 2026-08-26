@@ -170,6 +170,16 @@ function HostMode({ s, me, myId, actions }) {
         </div>
       )}
       <HostConsole hostId={myId} />
+      {s.status !== 'playing' && (
+        <div className="claim-host">
+          <ConfirmButton
+            className="btn btn--ghost btn--small"
+            label="🏠 Oddaję pilota"
+            confirmLabel="Oddać prowadzenie?"
+            onConfirm={() => actions.reclaimHost()}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -220,10 +230,21 @@ function GameScreen({ s, actions, myId, me }) {
       </header>
 
       {s.status === 'over' ? (
-        <PlayerOver s={s} myId={myId} />
+        <PlayerOver s={s} myId={myId} actions={actions} />
       ) : (
         <>
           <StatusStrip s={s} myTurn={myTurn} myId={myId} activeName={activeName} />
+
+          {!s.hostId && s.status !== 'playing' && (
+            <div className="claim-host">
+              <ConfirmButton
+                className="btn btn--primary"
+                label="🎩 Poprowadzę — wpiszę hasło"
+                confirmLabel="Przejąć pilota?"
+                onConfirm={() => actions.claimHost(myId)}
+              />
+            </div>
+          )}
 
           {s.category && s.status !== 'idle' && (
             <div className="player-category">
@@ -282,7 +303,7 @@ function GameScreen({ s, actions, myId, me }) {
   )
 }
 
-function PlayerOver({ s, myId }) {
+function PlayerOver({ s, myId, actions }) {
   const players = sortedPlayers(s.players)
   const myRank = players.findIndex((p) => p.id === myId) + 1
   return (
@@ -292,8 +313,18 @@ function PlayerOver({ s, myId }) {
       </div>
       <Leaderboard s={s} myId={myId} />
       <p className="hint" style={{ textAlign: 'center' }}>
-        Podium jest na telewizorze. Czekaj na nową grę…
+        Podium jest na telewizorze.
       </p>
+      {!s.hostId && (
+        <div className="claim-host">
+          <ConfirmButton
+            className="btn btn--primary"
+            label="🎩 Poprowadzę nowe hasło"
+            confirmLabel="Gramy dalej? (punkty zostają)"
+            onConfirm={() => actions.claimHost(myId)}
+          />
+        </div>
+      )}
     </>
   )
 }

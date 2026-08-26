@@ -15,12 +15,16 @@ export default function Home() {
         <Link to="/play" className="home-card">
           <span className="home-card-emoji">🎮</span>
           <span className="home-card-title">Gracz</span>
-          <span className="home-card-desc">Dołącz, zgaduj litery i zbieraj punkty</span>
+          <span className="home-card-desc">
+            Zgaduj litery, zbieraj punkty — i prowadź hasło, gdy Twoja kolej 🎩
+          </span>
         </Link>
         <Link to="/admin" className="home-card">
-          <span className="home-card-emoji">🎩</span>
-          <span className="home-card-title">Prowadzący</span>
-          <span className="home-card-desc">Wpisz hasło i steruj grą z telefonu</span>
+          <span className="home-card-emoji">🎛️</span>
+          <span className="home-card-title">Gospodarz</span>
+          <span className="home-card-desc">
+            Panel awaryjny: odbierz pilota, zakończ grę, reset
+          </span>
         </Link>
       </div>
       <ModeBadge />

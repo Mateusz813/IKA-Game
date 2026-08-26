@@ -1086,6 +1086,10 @@ textarea {
   gap: 7px;
 }
 
+.claim-host {
+  text-align: center;
+}
+
 .host-away {
   display: flex;
   align-items: center;

@@ -5,14 +5,14 @@ Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **prowadzący s
 ## Jak się gra
 
 1. **TV** — na telewizorze otwierasz `https://twoja-domena.vercel.app/tv` (pełny ekran: przycisk ⛶). Widać planszę, punkty, kod QR do dołączenia.
-2. **Prowadzący** — na swoim telefonie wchodzisz w `/admin`, wpisujesz hasło (kilka słów) i opcjonalnie kategorię, klikasz **Start**.
-3. **Gracze** — znajomi skanują QR z telewizora (albo wchodzą na `/play`), wpisują imię i już są w grze.
+2. **Gracze** — wszyscy (łącznie z prowadzącym!) skanują QR z telewizora (albo wchodzą na `/play`), wpisują imię, mogą zrobić sobie zdjęcie-avatar.
+3. **Prowadzenie krąży**: pierwszą rundę prowadzi ten, kto kliknie **„🎩 Poprowadzę — wpiszę hasło"** na swoim telefonie. Prowadzący to zwykły gracz — punkty ma dalej, tylko w swojej rundzie nie zgaduje. (Jest też klasyczny panel gospodarza pod `/admin` — awaryjny: odbieranie pilota, koniec gry, reset.)
 4. Prowadzący **daje turę** wybranemu graczowi (🎤). Tylko on może wtedy kliknąć literę.
    - Trafiona litera → odsłania się na TV z animacją, gracz dostaje **10 pkt za każde wystąpienie** litery (np. 3×A = 30 pkt), po czym tura wraca do prowadzącego.
    - Pudło → czerwony ✗ na TV, tura wraca do prowadzącego.
    - Prowadzący może też **sam klikać litery** (np. gdy ktoś bez telefonu podaje literę na głos) — punkty dostaje gracz, który aktualnie ma turę (jeśli jest).
 5. Gdy ktoś odgadnie całe hasło na głos, prowadzący klika przy nim **🏆** → gracz dostaje **100 pkt**, hasło się odsłania, konfetti 🎉.
-6. Po zakończonym haśle prowadzący wybiera: **prowadzi dalej** (wpisuje nowe hasło) albo **przekazuje pilota** wybranemu graczowi. Wybrany dostaje na telefonie pytanie, czy akceptuje — po akceptacji to on wpisuje hasło i wyznacza odpowiadających. Punkty cały czas się kumulują. Gospodarz (`/admin`) zawsze może odebrać prowadzenie.
+6. Po zakończonym haśle prowadzący wybiera: **prowadzi dalej** albo **przekazuje pilota** — lista podpowiada rotację (▶ przy osobie, która najdawniej prowadziła, więc hasła podaje każdy po kolei). Wybrany akceptuje na telefonie i przejmuje prowadzenie. Punkty cały czas się kumulują.
 7. Gracze mogą przy dołączaniu **zrobić sobie zdjęcie** (avatar) — pokazuje się na TV, w rankingach i na podium. Bez zdjęcia — kolorowe kółko z inicjałami.
 8. Przycisk **🏁 Zakończ grę** u gospodarza pokazuje na TV **podium** (top 3 + reszta stawki) z avatarami i punktami. Potem: gra dalej z punktami, nowa gra od zera albo **⏮ pełny reset od początku** (usuwa też graczy).
 
