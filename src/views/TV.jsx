@@ -7,14 +7,33 @@ import { sounds, unlockAudio } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
+// EASTER EGG: to hasło dostaje własną animację i dźwięk 💍
+const SPECIAL_PHRASE = 'CZY ZOSTANIESZ MOJĄ ŚWIADKOWĄ'
+const isSpecialPhrase = (p) =>
+  (p || '')
+    .replace(/[^A-ZĄĆĘŁŃÓŚŹŻ ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() === SPECIAL_PHRASE
+
 export default function TV() {
   const { state, ready } = useGame()
   useWakeLock()
-  useConfetti(ready && (state.status === 'finished' || state.status === 'over'))
+  const special = ready && isSpecialPhrase(state.phrase)
+  useConfetti(
+    ready && !special && (state.status === 'finished' || state.status === 'over')
+  )
   const [soundOn, setSoundOn] = useState(
     () => localStorage.getItem('ika-tv-sound') !== '0'
   )
-  useTvSounds(ready ? state.lastAction : null, soundOn)
+  useTvSounds(ready ? state.lastAction : null, soundOn, special)
+
+  // gdy hasło-niespodzianka jest w grze, ładujemy kota zawczasu
+  useEffect(() => {
+    if (special) {
+      const img = new Image()
+      img.src = '/icons/shrek-cat.png'
+    }
+  }, [special])
 
   if (!ready) return <Spinner />
   const s = state
@@ -108,7 +127,70 @@ export default function TV() {
         </div>
       )}
 
-      {s.status === 'finished' && s.winnerId && <WinOverlay s={s} />}
+      {s.status === 'finished' &&
+        (special ? (
+          <SwiadkowaOverlay s={s} />
+        ) : s.winnerId ? (
+          <WinOverlay s={s} />
+        ) : null)}
+    </div>
+  )
+}
+
+// 💍 Specjalna animacja dla hasła „Czy zostaniesz moją świadkową”
+function SwiadkowaOverlay({ s }) {
+  const winner = s.winnerId ? s.players[s.winnerId] : null
+  useEffect(() => {
+    const end = Date.now() + 10000
+    const t = setInterval(() => {
+      confetti({
+        particleCount: 10,
+        spread: 120,
+        startVelocity: 22,
+        gravity: 0.55,
+        ticks: 220,
+        colors: ['#ff6b9d', '#ff8fab', '#ffc2d1', '#ff4d84', '#ffffff'],
+        origin: { x: Math.random(), y: Math.random() * 0.35 },
+      })
+      if (Date.now() > end) clearInterval(t)
+    }, 300)
+    return () => {
+      clearInterval(t)
+      try {
+        window.speechSynthesis?.cancel()
+      } catch { /* ignore */ }
+    }
+  }, [])
+  const hearts = ['💖', '💍', '💘', '💝', '💖', '🥺', '💖', '💍', '💗', '💖']
+  return (
+    <div className="swk-overlay">
+      {hearts.map((e, i) => (
+        <span
+          key={i}
+          className="swk-heart"
+          style={{
+            left: `${4 + i * 10}%`,
+            animationDelay: `${i * 0.55}s`,
+            animationDuration: `${4.6 + (i % 4) * 0.9}s`,
+            fontSize: `min(${3 + (i % 3) * 1.4}vw, ${4.5 + (i % 3) * 2}vh)`,
+          }}
+        >
+          {e}
+        </span>
+      ))}
+      <div className="swk-cat-roam">
+        <img src="/icons/shrek-cat.png" alt="" className="swk-cat" />
+      </div>
+      <div className="swk-text">
+        <div className="swk-title">CZY ZOSTANIESZ</div>
+        <div className="swk-title swk-title--2">MOJĄ ŚWIADKOWĄ? 💍</div>
+        {winner && (
+          <div className="swk-name">
+            <Avatar player={winner} size="min(6vw, 9vh)" /> {winner.name}! 🥹
+          </div>
+        )}
+        <div className="swk-please">please, please, please… 🥺</div>
+      </div>
     </div>
   )
 }
@@ -144,7 +226,7 @@ function WinOverlay({ s }) {
 }
 
 // Dźwięki sterowane akcjami gry (tylko TV)
-function useTvSounds(lastAction, soundOn) {
+function useTvSounds(lastAction, soundOn, special = false) {
   const lastTs = useRef(0)
 
   // pierwszy klik/dotyk na TV odblokowuje audio (polityka autoplay)
@@ -164,10 +246,11 @@ function useTvSounds(lastAction, soundOn) {
     lastTs.current = a.ts
     if (Date.now() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
     if (!soundOn) return
-    if (a.type === 'hit') sounds.hit(a.count)
+    if (special && (a.type === 'win' || a.type === 'end')) sounds.please()
+    else if (a.type === 'hit') sounds.hit(a.count)
     else if (a.type === 'miss') sounds.miss()
     else if (a.type === 'win' || a.type === 'gameover') sounds.win()
-  }, [lastAction, soundOn])
+  }, [lastAction, soundOn, special])
 }
 
 // ——— Podium na koniec gry ———
