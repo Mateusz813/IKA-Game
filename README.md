@@ -1,4 +1,4 @@
-# 🎡 IKA Game — domowe Koło Fortuny
+# 🎡 WIMP Game — domowe Koło Fortuny
 
 Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **prowadzący steruje grą z telefonu**, a **gracze zgadują litery ze swoich telefonów** w czasie rzeczywistym.
 

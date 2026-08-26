@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { useGame, sortedPlayers, usedInfo } from '../lib/store.jsx'
 import { useFreshAction } from '../lib/hooks.js'
 import { ALPHABET } from '../lib/alphabet.js'
+import { sounds, unlockAudio } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
@@ -10,12 +11,31 @@ export default function TV() {
   const { state, ready } = useGame()
   useWakeLock()
   useConfetti(ready && (state.status === 'finished' || state.status === 'over'))
+  const [soundOn, setSoundOn] = useState(
+    () => localStorage.getItem('ika-tv-sound') !== '0'
+  )
+  useTvSounds(ready ? state.lastAction : null, soundOn)
 
   if (!ready) return <Spinner />
   const s = state
   const players = sortedPlayers(s.players)
 
-  if (s.status === 'over') return <TVOver s={s} players={players} />
+  const soundBtn = (
+    <button
+      className="btn btn--ghost btn--small"
+      title="Dźwięki na TV"
+      onClick={() => {
+        const next = !soundOn
+        setSoundOn(next)
+        localStorage.setItem('ika-tv-sound', next ? '1' : '0')
+        if (next) unlockAudio()
+      }}
+    >
+      {soundOn ? '🔊' : '🔇'}
+    </button>
+  )
+
+  if (s.status === 'over') return <TVOver s={s} players={players} soundBtn={soundBtn} />
 
   return (
     <div className="tv">
@@ -26,6 +46,7 @@ export default function TV() {
         )}
         <div className="tv-header-right">
           <ModeBadge />
+          {soundBtn}
           <FullscreenButton />
         </div>
       </header>
@@ -86,12 +107,71 @@ export default function TV() {
           <span>dołącz</span>
         </div>
       )}
+
+      {s.status === 'finished' && s.winnerId && <WinOverlay s={s} />}
     </div>
   )
 }
 
+// Wielka animacja zwycięzcy — pełny ekran, tylko na TV
+function WinOverlay({ s }) {
+  const winner = s.players[s.winnerId]
+  return (
+    <div className="win-overlay">
+      <div className="win-rays" />
+      <div className="win-card">
+        <div className="win-crown">👑</div>
+        <div className="win-avatar">
+          <Avatar player={winner} size="min(15vw, 22vh)" />
+        </div>
+        <div className="win-title">HASŁO ODGADNIĘTE!</div>
+        <div className="win-name">{winner?.name || '???'}</div>
+        <div className="win-pts">+100 pkt</div>
+        <div className="win-phrase">
+          {[...s.phrase].map((ch, i) =>
+            ch === ' ' ? (
+              <span key={i} className="win-phrase-sp" />
+            ) : (
+              <span key={i} className="win-phrase-ch" style={{ animationDelay: `${1 + i * 0.05}s` }}>
+                {ch}
+              </span>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Dźwięki sterowane akcjami gry (tylko TV)
+function useTvSounds(lastAction, soundOn) {
+  const lastTs = useRef(0)
+
+  // pierwszy klik/dotyk na TV odblokowuje audio (polityka autoplay)
+  useEffect(() => {
+    const unlock = () => unlockAudio()
+    document.addEventListener('pointerdown', unlock)
+    document.addEventListener('keydown', unlock)
+    return () => {
+      document.removeEventListener('pointerdown', unlock)
+      document.removeEventListener('keydown', unlock)
+    }
+  }, [])
+
+  useEffect(() => {
+    const a = lastAction
+    if (!a || a.ts === lastTs.current) return
+    lastTs.current = a.ts
+    if (Date.now() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
+    if (!soundOn) return
+    if (a.type === 'hit') sounds.hit(a.count)
+    else if (a.type === 'miss') sounds.miss()
+    else if (a.type === 'win' || a.type === 'gameover') sounds.win()
+  }, [lastAction, soundOn])
+}
+
 // ——— Podium na koniec gry ———
-function TVOver({ s, players }) {
+function TVOver({ s, players, soundBtn }) {
   const top = players.slice(0, 3)
   const rest = players.slice(3)
   // kolejność wizualna: 2. | 1. | 3.
@@ -102,6 +182,7 @@ function TVOver({ s, players }) {
         <Logo small />
         <div className="tv-header-right">
           <ModeBadge />
+          {soundBtn}
           <FullscreenButton />
         </div>
       </header>

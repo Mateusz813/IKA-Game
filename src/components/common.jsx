@@ -5,7 +5,7 @@ import { useGame } from '../lib/store.jsx'
 export function Logo({ small = false }) {
   return (
     <div className={`logo ${small ? 'logo--small' : ''}`}>
-      <span className="logo-ika">IKA</span>
+      <span className="logo-ika">WIMP</span>
       <span className="logo-game">GAME</span>
     </div>
   )

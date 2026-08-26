@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg'],
       manifest: {
-        name: 'IKA Game — Koło Fortuny',
-        short_name: 'IKA Game',
+        name: 'WIMP Game — Koło Fortuny',
+        short_name: 'WIMP Game',
         description: 'Domowe koło fortuny — zgadujcie hasła ze znajomymi na TV i telefonach',
         lang: 'pl',
         start_url: '/',
