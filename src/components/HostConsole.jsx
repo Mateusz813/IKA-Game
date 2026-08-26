@@ -14,7 +14,7 @@ export default function HostConsole({ hostId = null, isOwner = false }) {
   return (
     <>
       {s.status === 'playing' ? (
-        <GamePanel s={s} actions={actions} />
+        <GamePanel s={s} actions={actions} hostId={hostId} />
       ) : s.status === 'over' ? (
         <OverPanel s={s} actions={actions} />
       ) : (
@@ -154,7 +154,7 @@ function HandoverCard({ s, actions, hostId }) {
   )
 }
 
-function GamePanel({ s, actions }) {
+function GamePanel({ s, actions, hostId }) {
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
   return (
     <section className="panel">
@@ -182,7 +182,7 @@ function GamePanel({ s, actions }) {
       <p className="hint">
         Kliknięta litera odsłania się u wszystkich. Punkty dostaje gracz z turą.
       </p>
-      <Keyboard used={s.used} onPick={(L) => actions.guessLetter(L)} />
+      <Keyboard used={s.used} viewerId={hostId} onPick={(L) => actions.guessLetter(L)} />
 
       <div className="admin-actions">
         <ConfirmButton

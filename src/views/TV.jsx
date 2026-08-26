@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import confetti from 'canvas-confetti'
-import { useGame, sortedPlayers } from '../lib/store.jsx'
+import { useGame, sortedPlayers, usedInfo } from '../lib/store.jsx'
 import { useFreshAction } from '../lib/hooks.js'
 import { ALPHABET } from '../lib/alphabet.js'
 import Board from '../components/Board.jsx'
@@ -224,20 +224,19 @@ function UsedStrip({ used, visible }) {
   if (!visible) return null
   return (
     <div className="tv-used">
-      {ALPHABET.map((L) => (
-        <span
-          key={L}
-          className={`tv-used-l ${
-            used[L] === 'hit'
-              ? 'tv-used-l--hit'
-              : used[L] === 'miss'
-                ? 'tv-used-l--miss'
-                : ''
-          }`}
-        >
-          {L}
-        </span>
-      ))}
+      {ALPHABET.map((L) => {
+        const r = usedInfo(used[L])?.r
+        return (
+          <span
+            key={L}
+            className={`tv-used-l ${
+              r === 'hit' ? 'tv-used-l--hit' : r === 'miss' ? 'tv-used-l--miss' : ''
+            }`}
+          >
+            {L}
+          </span>
+        )
+      })}
     </div>
   )
 }

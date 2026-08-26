@@ -337,17 +337,49 @@ textarea {
 .kbd-key:active { transform: scale(0.88); }
 .kbd-key:disabled { cursor: default; }
 
-.kbd-key--hit {
+/* moje trafienie — zielone */
+.kbd-key--mine {
   background: linear-gradient(180deg, #2fb886, #1d8d64);
   border-color: var(--green);
-  opacity: 0.85;
+  opacity: 0.95;
 }
 
+/* trafienie kogoś innego — niebieskie */
+.kbd-key--other {
+  background: linear-gradient(180deg, var(--tile-blue1), var(--tile-blue2));
+  border-color: #7ea1ff;
+  opacity: 0.9;
+}
+
+/* pudło — czerwone, u wszystkich tak samo */
 .kbd-key--miss {
   background: linear-gradient(180deg, #8d2a40, #64182a);
   border-color: rgba(255, 77, 109, 0.7);
-  opacity: 0.5;
+  opacity: 0.55;
 }
+
+.kbd-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+  margin: 8px 0 0;
+}
+
+.leg {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.leg--mine { background: #2fb886; }
+.leg--other { background: var(--tile-blue1); }
+.leg--miss { background: #8d2a40; }
 
 .kbd--off {
   filter: saturate(0.4) brightness(0.6);

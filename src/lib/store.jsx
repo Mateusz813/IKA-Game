@@ -93,7 +93,8 @@ function makeActions(get) {
       const count = countLetter(s.phrase, letter)
       const hit = count > 0
       const u = {
-        ['used/' + letter]: hit ? 'hit' : 'miss',
+        // zapisujemy też KTO kliknął — klawiatura koloruje moje/cudze inaczej
+        ['used/' + letter]: { r: hit ? 'hit' : 'miss', by: credit || null },
         activePlayerId: null,
         lastAction: {
           type: hit ? 'hit' : 'miss',
@@ -294,6 +295,10 @@ function makeActions(get) {
     },
   }
 }
+
+// used[L] bywa starym stringiem ('hit'/'miss') albo obiektem { r, by }
+export const usedInfo = (u) =>
+  !u ? null : typeof u === 'string' ? { r: u, by: null } : u
 
 export function sortedPlayers(players) {
   return Object.entries(players)

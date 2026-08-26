@@ -253,8 +253,14 @@ function GameScreen({ s, actions, myId, me }) {
             <Keyboard
               used={s.used}
               disabled={!myTurn}
+              viewerId={myId}
               onPick={(L) => actions.guessLetter(L, myId)}
             />
+            <p className="kbd-legend">
+              <span className="leg leg--mine" /> Twoje trafienia
+              <span className="leg leg--other" /> trafienia innych
+              <span className="leg leg--miss" /> pudła
+            </p>
           </div>
 
           <Leaderboard s={s} myId={myId} />
