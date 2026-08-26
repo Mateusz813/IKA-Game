@@ -1,6 +1,50 @@
 // Dźwięki syntezowane WebAudio — zero plików, działa offline.
 // Używane WYŁĄCZNIE w trybie TV.
 let ctx = null
+let pleaseAudio = null
+
+// zatrzymuje nagranie „please” (np. gdy zaczyna się nowa runda)
+export function stopPlease() {
+  if (pleaseAudio) {
+    try {
+      pleaseAudio.pause()
+    } catch { /* ignore */ }
+    pleaseAudio = null
+  }
+  try {
+    window.speechSynthesis?.cancel()
+  } catch { /* ignore */ }
+}
+
+// awaryjnie, gdy nagranie nie chce się odtworzyć (kodek/autoplay):
+// synteza mowy + pozytywka jak wcześniej
+function pleaseFallback() {
+  const untilMs = Date.now() + 10000
+  try {
+    const synth = window.speechSynthesis
+    if (synth) {
+      synth.cancel()
+      const speak = () => {
+        if (Date.now() > untilMs) return
+        const u = new SpeechSynthesisUtterance('please, please, please')
+        u.lang = 'en-US'
+        u.pitch = 1.5
+        u.rate = 1.0
+        u.onend = () => setTimeout(speak, 150)
+        synth.speak(u)
+      }
+      speak()
+    }
+  } catch { /* ignore */ }
+  if (!ctx) return
+  const t0 = ctx.currentTime + 0.05
+  const melody = [523.25, 659.25, 783.99, 987.77, 1046.5, 987.77, 783.99, 659.25]
+  for (let rep = 0; rep < 8; rep++) {
+    melody.forEach((f, i) => {
+      tone({ freq: f, type: 'sine', t0: t0 + rep * 1.28 + i * 0.16, dur: 0.3, vol: 0.06 })
+    })
+  }
+}
 
 export function unlockAudio() {
   try {
@@ -47,36 +91,23 @@ export const sounds = {
     tone({ freq: 150, type: 'sawtooth', t0: t + 0.3, dur: 0.45, vol: 0.17, slideTo: 95 })
   },
 
-  // EASTER EGG „świadkowa”: głos „please, please, please” w pętli przez ~10 s
-  // (synteza mowy) + delikatna pozytywka w tle
+  // EASTER EGG „świadkowa”: nagranie please.m4a (audio z please.mov) ×10
   please() {
     unlockAudio()
-    const untilMs = Date.now() + 10000
-    try {
-      const synth = window.speechSynthesis
-      if (synth) {
-        synth.cancel()
-        const speak = () => {
-          if (Date.now() > untilMs) return
-          const u = new SpeechSynthesisUtterance('please, please, please')
-          u.lang = 'en-US'
-          u.pitch = 1.5
-          u.rate = 1.0
-          u.onend = () => setTimeout(speak, 150)
-          synth.speak(u)
-        }
-        speak()
+    stopPlease()
+    let plays = 0
+    const a = new Audio('/icons/please.m4a')
+    pleaseAudio = a
+    a.preload = 'auto'
+    a.volume = 1
+    a.addEventListener('ended', () => {
+      plays++
+      if (plays < 10 && pleaseAudio === a) {
+        a.currentTime = 0
+        a.play().catch(() => {})
       }
-    } catch { /* brak syntezy mowy — zostaje pozytywka */ }
-    if (!ctx) return
-    const t0 = ctx.currentTime + 0.05
-    const melody = [523.25, 659.25, 783.99, 987.77, 1046.5, 987.77, 783.99, 659.25]
-    for (let rep = 0; rep < 8; rep++) {
-      melody.forEach((f, i) => {
-        tone({ freq: f, type: 'sine', t0: t0 + rep * 1.28 + i * 0.16, dur: 0.3, vol: 0.06 })
-        tone({ freq: f * 2, type: 'sine', t0: t0 + rep * 1.28 + i * 0.16, dur: 0.2, vol: 0.02 })
-      })
-    }
+    })
+    a.play().catch(() => pleaseFallback())
   },
 
   // fanfary przy odgadnięciu hasła / podium

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import confetti from 'canvas-confetti'
+import confetti from '../lib/confetti.js'
 import { useGame, sortedPlayers, usedInfo } from '../lib/store.jsx'
 import { useFreshAction } from '../lib/hooks.js'
 import { ALPHABET } from '../lib/alphabet.js'
-import { sounds, unlockAudio } from '../lib/sound.js'
+import { sounds, unlockAudio, stopPlease } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
@@ -27,11 +27,13 @@ export default function TV() {
   )
   useTvSounds(ready ? state.lastAction : null, soundOn, special)
 
-  // gdy hasło-niespodzianka jest w grze, ładujemy kota zawczasu
+  // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
   useEffect(() => {
     if (special) {
       const img = new Image()
       img.src = '/icons/shrek-cat.png'
+      const preload = new Audio('/icons/please.m4a')
+      preload.preload = 'auto'
     }
   }, [special])
 
@@ -156,9 +158,7 @@ function SwiadkowaOverlay({ s }) {
     }, 300)
     return () => {
       clearInterval(t)
-      try {
-        window.speechSynthesis?.cancel()
-      } catch { /* ignore */ }
+      stopPlease()
     }
   }, [])
   const hearts = ['💖', '💍', '💘', '💝', '💖', '🥺', '💖', '💍', '💗', '💖']
