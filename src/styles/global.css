@@ -28,18 +28,33 @@ body,
   height: 100%;
 }
 
+/* ciemna baza także pod safe-area (pasek home na iPhone) i overscroll */
+html {
+  background: var(--bg2);
+}
+
 body {
   margin: 0;
   font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
   color: #fff;
+  background: var(--bg2);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* gradient jako warstwa fixed — iOS nie wspiera background-attachment: fixed,
+   a ta warstwa pokrywa cały ekran łącznie z safe area (viewport-fit=cover) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(1100px 700px at 15% -10%, rgba(99, 38, 190, 0.75), transparent 60%),
     radial-gradient(900px 650px at 110% 15%, rgba(190, 56, 160, 0.4), transparent 55%),
     radial-gradient(800px 500px at 50% 115%, rgba(28, 90, 200, 0.35), transparent 60%),
     linear-gradient(160deg, var(--bg1), var(--bg2) 70%);
-  background-attachment: fixed;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 button {
