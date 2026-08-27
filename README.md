@@ -6,7 +6,7 @@ Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **prowadzący s
 
 1. **TV** — na telewizorze otwierasz `https://twoja-domena.vercel.app/tv` (pełny ekran: przycisk ⛶). Widać planszę, punkty, kod QR do dołączenia.
 2. **Gracze** — wszyscy (łącznie z prowadzącym!) skanują QR z telewizora (albo wchodzą na `/play`), wpisują imię, mogą zrobić sobie zdjęcie-avatar.
-3. **Prowadzenie krąży**: pierwszą rundę prowadzi ten, kto kliknie **„🎩 Poprowadzę — wpiszę hasło"** na swoim telefonie. Prowadzący to zwykły gracz — punkty ma dalej, tylko w swojej rundzie nie zgaduje. (Jest też klasyczny panel gospodarza pod `/admin` — awaryjny: odbieranie pilota, koniec gry, reset.)
+3. **Prowadzenie krąży**: kafelek **„Admin"** na starcie to zwykłe dołączenie do gry + przejęcie pilota (Ty podajesz pierwsze hasło); można też w każdej chwili kliknąć **„🎩 Poprowadzę"** w widoku gracza, gdy pilot jest wolny. Prowadzący to zwykły gracz — punkty ma dalej, tylko w swojej rundzie nie zgaduje. **Hasło widzi wyłącznie osoba, która je wpisała** — nikt nie może przejąć prowadzenia w trakcie rundy; tylko prowadzący przekazuje pilota dalej. Pod `/admin` jest wyłącznie panel awaryjny (przerwanie rundy, podium, resety — bez podglądu hasła).
 4. Prowadzący **daje turę** wybranemu graczowi (🎤). Tylko on może wtedy kliknąć literę.
    - Trafiona litera → odsłania się na TV z animacją, gracz dostaje **10 pkt za każde wystąpienie** litery (np. 3×A = 30 pkt), po czym tura wraca do prowadzącego.
    - Pudło → czerwony ✗ na TV, tura wraca do prowadzącego.

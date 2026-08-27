@@ -19,15 +19,16 @@ export default function Home() {
             Zgaduj litery, zbieraj punkty — i prowadź hasło, gdy Twoja kolej 🎩
           </span>
         </Link>
-        <Link to="/admin" className="home-card">
-          <span className="home-card-emoji">🎛️</span>
-          <span className="home-card-title">Gospodarz</span>
+        <Link to="/play?host=1" className="home-card">
+          <span className="home-card-emoji">🎩</span>
+          <span className="home-card-title">Admin</span>
           <span className="home-card-desc">
-            Panel awaryjny: odbierz pilota, zakończ grę, reset
+            Też grasz normalnie — ale to Ty podajesz pierwsze hasło
           </span>
         </Link>
       </div>
       <ModeBadge />
+      <Link to="/admin" className="home-emergency">🎛️ panel awaryjny</Link>
     </div>
   )
 }

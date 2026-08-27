@@ -1090,6 +1090,38 @@ textarea {
   text-align: center;
 }
 
+/* duże, jednoznaczne przyciski po zakończonym haśle */
+.handover-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn--green {
+  background: linear-gradient(180deg, #4be29a, #1d9d64);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #042415;
+  box-shadow: 0 4px 18px rgba(67, 224, 138, 0.35);
+}
+
+.btn--red {
+  background: linear-gradient(180deg, #ff7d97, #d92752);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #3d0313;
+  box-shadow: 0 4px 18px rgba(255, 77, 109, 0.35);
+}
+
+.home-emergency {
+  color: #fff;
+  opacity: 0.4;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-top: 8px;
+}
+
+.home-emergency:hover { opacity: 0.8; }
+
 .host-away {
   display: flex;
   align-items: center;

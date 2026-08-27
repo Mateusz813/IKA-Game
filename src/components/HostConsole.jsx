@@ -7,9 +7,9 @@ import Board from './Board.jsx'
 import Keyboard from './Keyboard.jsx'
 import { Avatar, ConfirmButton } from './common.jsx'
 
-// Panel prowadzącego — używany przez gospodarza (/admin, hostId=null)
-// oraz przez gracza, któremu przekazano pilota (hostId = jego id).
-export default function HostConsole({ hostId = null, isOwner = false }) {
+// Panel prowadzącego — wyłącznie dla gracza, który aktualnie ma pilota.
+// Tylko on widzi hasło i tylko on może przekazać prowadzenie dalej.
+export default function HostConsole({ hostId }) {
   const { state: s, actions } = useGame()
   return (
     <>
@@ -20,7 +20,7 @@ export default function HostConsole({ hostId = null, isOwner = false }) {
       ) : (
         <SetupPanel s={s} actions={actions} hostId={hostId} />
       )}
-      <PlayersPanel s={s} actions={actions} hostId={hostId} isOwner={isOwner} />
+      <PlayersPanel s={s} actions={actions} hostId={hostId} />
     </>
   )
 }
@@ -105,8 +105,9 @@ function FinishedBanner({ s }) {
   )
 }
 
-// Po zakończonym haśle: prowadzisz dalej czy przekazujesz pilota?
+// Po zakończonym haśle: zielony = wpisuję dalej, czerwony = przekazuję pilota
 function HandoverCard({ s, actions, hostId }) {
+  const [picking, setPicking] = useState(false)
   const fresh = useFreshAction(s.lastAction, 6000)
   const declinedBy =
     fresh?.type === 'hostDecline' ? s.players[fresh.playerId]?.name : null
@@ -129,16 +130,25 @@ function HandoverCard({ s, actions, hostId }) {
 
   return (
     <div className="handover">
-      <h3>Kto prowadzi następne hasło?</h3>
+      <h3>Kto podaje następne hasło?</h3>
       {declinedBy && (
         <p className="hint">😅 {declinedBy} nie przyjmuje prowadzenia — wybierz kogoś innego albo prowadź dalej.</p>
       )}
-      <button className="btn btn--primary btn--big" onClick={() => actions.newRound()}>
-        🎬 Ja — wpisuję nowe hasło
-      </button>
-      {candidates.length > 0 && (
+      <div className="handover-choice">
+        <button className="btn btn--green btn--big" onClick={() => actions.newRound()}>
+          ✅ Ja — wpisuję dalej
+        </button>
+        <button
+          className="btn btn--red btn--big"
+          disabled={!candidates.length}
+          onClick={() => setPicking((v) => !v)}
+        >
+          🔁 Przekazuję prowadzenie
+        </button>
+      </div>
+      {picking && candidates.length > 0 && (
         <>
-          <p className="hint">…albo przekaż pilota (▶ = kolej według rotacji):</p>
+          <p className="hint">Komu? (▶ = kolej według rotacji)</p>
           <div className="handover-chips">
             {candidates.map((p, i) => (
               <button
@@ -152,11 +162,6 @@ function HandoverCard({ s, actions, hostId }) {
             ))}
           </div>
         </>
-      )}
-      {hostId && (
-        <button className="btn btn--ghost" onClick={() => actions.reclaimHost()}>
-          🏠 Oddaj pilota gospodarzowi
-        </button>
       )}
     </div>
   )
@@ -248,7 +253,7 @@ function OverPanel({ s, actions }) {
   )
 }
 
-function PlayersPanel({ s, actions, hostId, isOwner }) {
+function PlayersPanel({ s, actions, hostId }) {
   const players = sortedPlayers(s.players)
   const playing = s.status === 'playing'
   return (
@@ -307,7 +312,7 @@ function PlayersPanel({ s, actions, hostId, isOwner }) {
         })}
       </ul>
       <div className="admin-actions">
-        {isOwner && s.status !== 'over' && players.length > 0 && (
+        {s.status !== 'over' && players.length > 0 && (
           <ConfirmButton
             className="btn btn--gold"
             label="🏁 Zakończ grę"
@@ -321,14 +326,6 @@ function PlayersPanel({ s, actions, hostId, isOwner }) {
             label="Wyzeruj punkty"
             confirmLabel="Wyzerować wszystkim?"
             onConfirm={() => actions.resetScores()}
-          />
-        )}
-        {isOwner && s.status !== 'over' && (
-          <ConfirmButton
-            className="btn btn--ghost"
-            label="⏮ Od początku"
-            confirmLabel="Reset + usunięcie graczy?"
-            onConfirm={() => actions.resetAll()}
           />
         )}
       </div>

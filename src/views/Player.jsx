@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useGame, sortedPlayers } from '../lib/store.jsx'
 import {
   useFreshAction,
@@ -24,6 +24,16 @@ export default function Player() {
   const { state, ready, actions } = useGame()
   const myId = getPlayerId()
   const autoJoined = useRef(false)
+  const [params, setParams] = useSearchParams()
+  const wantHost = params.get('host') === '1'
+
+  // wejście z kafelka „Admin”: po dołączeniu od razu przejmij pilota
+  // (jeśli wolny — claimHost sam pilnuje, żeby nikomu go nie zabrać)
+  useEffect(() => {
+    if (!ready || !wantHost || !state.players[myId]) return
+    actions.claimHost(myId)
+    setParams({}, { replace: true })
+  }, [ready, wantHost, !!state.players[myId]]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Automatyczny powrót do gry po odświeżeniu (raz na wejście)
   useEffect(() => {
@@ -46,6 +56,7 @@ export default function Player() {
   if (!me)
     return (
       <JoinScreen
+        asHost={wantHost}
         onJoin={(name, photo) => {
           saveName(name)
           actions.joinPlayer(myId, name, photo)
@@ -66,7 +77,7 @@ export default function Player() {
   )
 }
 
-function JoinScreen({ onJoin }) {
+function JoinScreen({ onJoin, asHost = false }) {
   const [name, setName] = useState(getSavedName())
   const [photo, setPhoto] = useState(null)
   const fileRef = useRef(null)
@@ -74,7 +85,9 @@ function JoinScreen({ onJoin }) {
   return (
     <div className="home">
       <Logo />
-      <p className="home-sub">Dołącz do gry 🎮</p>
+      <p className="home-sub">
+        {asHost ? 'Dołącz i podawaj pierwsze hasło 🎩' : 'Dołącz do gry 🎮'}
+      </p>
       <form
         className="join-form"
         onSubmit={(e) => {
