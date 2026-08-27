@@ -17,8 +17,9 @@ export default function Board({
   let flipIdx = 0
 
   return (
-    <div className={`board board--${size} ${shaking ? 'board--shake' : ''}`}>
-      {rows.map((row, ri) => (
+    <div className="board-box">
+      <div className={`board board--${size} ${shaking ? 'board--shake' : ''}`}>
+        {rows.map((row, ri) => (
         <div className="board-row" key={ri}>
           {row.cells.map((cell, ci) => {
             if (!cell) return <div className="tile tile--filler" key={ci} />
@@ -47,8 +48,9 @@ export default function Board({
               </div>
             )
           })}
-        </div>
-      ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

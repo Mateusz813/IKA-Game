@@ -193,7 +193,8 @@ function GamePanel({ s, actions, hostId }) {
       </div>
 
       <p className="hint">
-        Kliknięta litera odsłania się u wszystkich. Punkty dostaje gracz z turą.
+        Możesz też sam kliknąć literę (np. gdy ktoś zgaduje na głos bez telefonu)
+        — punkty dostanie osoba z 🎤.
       </p>
       <Keyboard used={s.used} viewerId={hostId} onPick={(L) => actions.guessLetter(L)} />
 
@@ -265,6 +266,11 @@ function PlayersPanel({ s, actions, hostId }) {
           na ekranie TV jest kod QR.
         </p>
       )}
+      {playing && players.length > 0 && (
+        <p className="hint">
+          🎤 wyznacz, kto może kliknąć literę · 🏆 kliknij, gdy ktoś poda całe hasło
+        </p>
+      )}
       <ul className="admin-players">
         {players.map((p) => {
           const active = s.activePlayerId === p.id
@@ -280,32 +286,30 @@ function PlayersPanel({ s, actions, hostId }) {
               {isMe ? (
                 <span className="host-tag">to Ty</span>
               ) : (
-                <>
-                  {playing && (
-                    <button
-                      className={`btn btn--small ${active ? 'btn--warn' : 'btn--primary'}`}
-                      onClick={() =>
-                        active ? actions.revokeTurn() : actions.grantTurn(p.id)
-                      }
-                    >
-                      {active ? '🔒 Zablokuj' : '🎤 Daj turę'}
-                    </button>
-                  )}
-                  {playing && (
-                    <ConfirmButton
-                      className="btn btn--small btn--gold"
-                      label="🏆"
-                      confirmLabel="Zgadł(a)? +100"
-                      onConfirm={() => actions.awardPhrase(p.id)}
-                    />
-                  )}
+                <ConfirmButton
+                  className="btn btn--small btn--ghost"
+                  label="✕"
+                  confirmLabel="Usunąć?"
+                  onConfirm={() => actions.removePlayer(p.id)}
+                />
+              )}
+              {playing && !isMe && (
+                <div className="admin-player-actions">
+                  <button
+                    className={`btn btn--small ${active ? 'btn--warn' : 'btn--primary'}`}
+                    onClick={() =>
+                      active ? actions.revokeTurn() : actions.grantTurn(p.id)
+                    }
+                  >
+                    {active ? '🔒 Zabierz turę' : '🎤 Wyznacz do odpowiedzi'}
+                  </button>
                   <ConfirmButton
-                    className="btn btn--small btn--ghost"
-                    label="✕"
-                    confirmLabel="Usunąć?"
-                    onConfirm={() => actions.removePlayer(p.id)}
+                    className="btn btn--small btn--gold"
+                    label="🏆 Zgadł(a) hasło"
+                    confirmLabel="Na pewno? +100 pkt"
+                    onConfirm={() => actions.awardPhrase(p.id)}
                   />
-                </>
+                </div>
               )}
             </li>
           )
