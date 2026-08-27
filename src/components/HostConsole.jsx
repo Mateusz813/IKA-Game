@@ -111,10 +111,7 @@ function HandoverCard({ s, actions, hostId }) {
   const fresh = useFreshAction(s.lastAction, 6000)
   const declinedBy =
     fresh?.type === 'hostDecline' ? s.players[fresh.playerId]?.name : null
-  // rotacja: pierwszy w kolejce jest ten, kto najdawniej (lub nigdy) nie prowadził
-  const candidates = sortedPlayers(s.players)
-    .filter((p) => p.id !== hostId)
-    .sort((a, b) => (a.hostedAt || 0) - (b.hostedAt || 0) || a.joinedAt - b.joinedAt)
+  const hasCandidates = sortedPlayers(s.players).some((p) => p.id !== hostId)
 
   if (s.handover) {
     const name = s.players[s.handover.toId]?.name || '…'
@@ -140,35 +137,35 @@ function HandoverCard({ s, actions, hostId }) {
         </button>
         <button
           className="btn btn--red btn--big"
-          disabled={!candidates.length}
-          onClick={() => setPicking((v) => !v)}
+          disabled={!hasCandidates}
+          onClick={() => setPicking(true)}
         >
           🔁 Przekazuję prowadzenie
         </button>
       </div>
-      {picking && candidates.length > 0 && (
-        <>
-          <p className="hint">Komu? (▶ = kolej według rotacji)</p>
-          <div className="handover-chips">
-            {candidates.map((p, i) => (
-              <button
-                key={p.id}
-                className={`btn ${i === 0 ? 'btn--primary' : ''}`}
-                onClick={() => actions.offerHost(p.id)}
-              >
-                {i === 0 ? '▶ ' : ''}
-                <Avatar player={p} size={22} /> {p.name}
-              </button>
-            ))}
-          </div>
-        </>
+      {picking && (
+        <PlayerPicker
+          title="Komu przekazać prowadzenie?"
+          subtitle="Ta osoba wpisze następne hasło"
+          rotate
+          s={s}
+          hostId={hostId}
+          onPick={(id) => {
+            actions.offerHost(id)
+            setPicking(false)
+          }}
+          onClose={() => setPicking(false)}
+        />
       )}
     </div>
   )
 }
 
 function GamePanel({ s, actions, hostId }) {
+  const [picker, setPicker] = useState(null) // 'award' | 'handover' | null
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
+  const pendingName = s.handover ? s.players[s.handover.toId]?.name : null
+  const hasCandidates = sortedPlayers(s.players).some((p) => p.id !== hostId)
   return (
     <section className="panel">
       <div className="admin-category">
@@ -188,31 +185,103 @@ function GamePanel({ s, actions, hostId }) {
         {activeName ? (
           <>🎤 Odpowiada: <b>{activeName}</b></>
         ) : (
-          <>🔒 Nikt nie ma tury — wybierz gracza niżej albo sam kliknij literę</>
+          <>🔒 Nikt nie ma tury — wyznacz gracza z listy niżej</>
         )}
       </div>
 
       <p className="hint">
-        Możesz też sam kliknąć literę (np. gdy ktoś zgaduje na głos bez telefonu)
-        — punkty dostanie osoba z 🎤.
+        Podgląd liter — klikają gracze na swoich telefonach. Ty tylko wyznaczasz,
+        kto odpowiada.
       </p>
-      <Keyboard used={s.used} viewerId={hostId} onPick={(L) => actions.guessLetter(L)} />
+      <Keyboard used={s.used} viewerId={hostId} readOnly />
 
-      <div className="admin-actions">
-        <ConfirmButton
-          className="btn"
-          label="👁 Odsłoń hasło"
-          confirmLabel="Odsłonić wszystko?"
-          onConfirm={() => actions.revealAll()}
+      {pendingName ? (
+        <div className="handover" style={{ marginTop: 14 }}>
+          <h3>⏳ Czekamy, aż <b>{pendingName}</b> przejmie prowadzenie…</h3>
+          <button className="btn" onClick={() => actions.cancelOffer()}>
+            Anuluj
+          </button>
+        </div>
+      ) : (
+        <div className="admin-actions admin-actions--stack">
+          <button
+            className="btn btn--gold btn--big"
+            disabled={!hasCandidates}
+            onClick={() => setPicker('award')}
+          >
+            🏆 Ktoś odgadnął hasło!
+          </button>
+          <button
+            className="btn btn--red btn--big"
+            disabled={!hasCandidates}
+            onClick={() => setPicker('handover')}
+          >
+            🔁 Przekaż prowadzenie
+          </button>
+        </div>
+      )}
+
+      {picker === 'award' && (
+        <PlayerPicker
+          title="Kto odgadnął hasło?"
+          subtitle="Ta osoba dostanie +100 pkt, hasło się odsłoni 🎉"
+          s={s}
+          hostId={hostId}
+          onPick={(id) => {
+            actions.awardPhrase(id)
+            setPicker(null)
+          }}
+          onClose={() => setPicker(null)}
         />
-        <ConfirmButton
-          className="btn btn--danger"
-          label="✖ Przerwij rundę"
-          confirmLabel="Na pewno przerwać?"
-          onConfirm={() => actions.newRound()}
+      )}
+      {picker === 'handover' && (
+        <PlayerPicker
+          title="Komu przekazać prowadzenie?"
+          subtitle="Ta osoba dokończy prowadzenie tego hasła (zobaczy je!)"
+          rotate
+          s={s}
+          hostId={hostId}
+          onPick={(id) => {
+            actions.offerHost(id)
+            setPicker(null)
+          }}
+          onClose={() => setPicker(null)}
         />
-      </div>
+      )}
     </section>
+  )
+}
+
+// Popup wyboru gracza (przyznanie hasła / przekazanie prowadzenia)
+function PlayerPicker({ title, subtitle, s, hostId, onPick, onClose, rotate = false }) {
+  let players = sortedPlayers(s.players).filter((p) => p.id !== hostId)
+  if (rotate)
+    players = [...players].sort(
+      (a, b) => (a.hostedAt || 0) - (b.hostedAt || 0) || a.joinedAt - b.joinedAt
+    )
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        {subtitle && <p>{subtitle}</p>}
+        {rotate && players.length > 1 && (
+          <p className="hint">▶ = kolej według rotacji</p>
+        )}
+        <div className="picker-list">
+          {players.map((p, i) => (
+            <button key={p.id} className="btn picker-row" onClick={() => onPick(p.id)}>
+              {rotate && i === 0 ? <span className="picker-next">▶</span> : null}
+              <Avatar player={p} size={30} />
+              <span className="picker-name">{p.name}</span>
+              <span className="picker-score">{p.score || 0} pkt</span>
+            </button>
+          ))}
+        </div>
+        <button className="btn btn--ghost" onClick={onClose}>
+          Anuluj
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -268,7 +337,7 @@ function PlayersPanel({ s, actions, hostId }) {
       )}
       {playing && players.length > 0 && (
         <p className="hint">
-          🎤 wyznacz, kto może kliknąć literę · 🏆 kliknij, gdy ktoś poda całe hasło
+          🎤 wyznacz osobę — tylko ona może wtedy kliknąć literę na swoim telefonie
         </p>
       )}
       <ul className="admin-players">
@@ -296,19 +365,13 @@ function PlayersPanel({ s, actions, hostId }) {
               {playing && !isMe && (
                 <div className="admin-player-actions">
                   <button
-                    className={`btn btn--small ${active ? 'btn--warn' : 'btn--primary'}`}
+                    className={`btn ${active ? 'btn--warn' : 'btn--primary'}`}
                     onClick={() =>
                       active ? actions.revokeTurn() : actions.grantTurn(p.id)
                     }
                   >
                     {active ? '🔒 Zabierz turę' : '🎤 Wyznacz do odpowiedzi'}
                   </button>
-                  <ConfirmButton
-                    className="btn btn--small btn--gold"
-                    label="🏆 Zgadł(a) hasło"
-                    confirmLabel="Na pewno? +100 pkt"
-                    onConfirm={() => actions.awardPhrase(p.id)}
-                  />
                 </div>
               )}
             </li>

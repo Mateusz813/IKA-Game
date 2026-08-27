@@ -492,7 +492,8 @@ textarea {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 4px 2px;
 }
 
@@ -610,17 +611,50 @@ textarea {
   padding: 9px 11px;
 }
 
-/* opisane przyciski akcji prowadzącego — pełna szerokość pod nazwą gracza */
+/* opisane przyciski akcji prowadzącego — jeden pod drugim, pełna szerokość,
+   bez poziomego scrolla na telefonie */
 .admin-player-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   width: 100%;
 }
 
-.admin-player-actions .btn {
-  flex: 1;
+.admin-player-actions .btn { width: 100%; }
+
+.admin-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.kbd--view { pointer-events: none; }
+.kbd--view .kbd-key:disabled { opacity: 1; }
+.kbd--view .kbd-key--miss { opacity: 0.55; }
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-size: 16px;
+  padding: 11px 14px;
+}
+
+.picker-next { color: var(--teal); font-weight: 900; }
+.picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.picker-score { margin-left: auto; color: var(--gold); font-weight: 900; }
 
 .admin-player--active {
   border-color: var(--teal);

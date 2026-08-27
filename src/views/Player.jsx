@@ -67,7 +67,9 @@ export default function Player() {
   const offered = state.handover?.toId === myId
   return (
     <>
-      {offered && <HandoverModal actions={actions} myId={myId} />}
+      {offered && (
+        <HandoverModal actions={actions} myId={myId} playing={state.status === 'playing'} />
+      )}
       {state.hostId === myId ? (
         <HostMode s={state} me={me} myId={myId} actions={actions} />
       ) : (
@@ -163,7 +165,7 @@ function InstallHint() {
 }
 
 // Propozycja przejęcia prowadzenia — pełnoekranowy modal
-function HandoverModal({ actions, myId }) {
+function HandoverModal({ actions, myId, playing = false }) {
   useEffect(() => {
     try {
       navigator.vibrate?.([150, 80, 150])
@@ -175,8 +177,9 @@ function HandoverModal({ actions, myId }) {
         <div className="modal-emoji">🎩</div>
         <h2>Przejmiesz prowadzenie?</h2>
         <p>
-          Wpiszesz następne hasło i będziesz wybierać, kto odpowiada. W tej
-          rundzie nie zgadujesz (znasz hasło 😉). Punkty wszystkich zostają.
+          {playing
+            ? 'Dokończysz prowadzenie tego hasła — zobaczysz je i będziesz wyznaczać, kto odpowiada. Od teraz nie zgadujesz. Punkty wszystkich zostają.'
+            : 'Wpiszesz następne hasło i będziesz wybierać, kto odpowiada. W swojej rundzie nie zgadujesz (znasz hasło 😉). Punkty wszystkich zostają.'}
         </p>
         <button className="btn btn--primary btn--big" onClick={() => actions.acceptHost(myId)}>
           ✅ Jasne, prowadzę!

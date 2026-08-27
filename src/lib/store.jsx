@@ -176,19 +176,28 @@ function makeActions(get) {
     acceptHost(playerId) {
       const s = get()
       if (s.handover?.toId !== playerId) return
-      sync.update({
+      const base = {
         hostId: playerId,
         handover: null,
-        status: 'idle',
-        phrase: '',
-        category: '',
-        revealed: null,
-        used: null,
-        activePlayerId: null,
-        winnerId: null,
         ['players/' + playerId + '/hostedAt']: now(),
         lastAction: { type: 'host', playerId, ts: now() },
-      })
+      }
+      if (s.status === 'playing') {
+        // przejęcie w trakcie rundy — plansza zostaje, nowy prowadzący dokańcza
+        if (s.activePlayerId === playerId) base.activePlayerId = null
+        sync.update(base)
+      } else {
+        sync.update({
+          ...base,
+          status: 'idle',
+          phrase: '',
+          category: '',
+          revealed: null,
+          used: null,
+          activePlayerId: null,
+          winnerId: null,
+        })
+      }
     },
 
     // gracz sam przejmuje pilota, gdy nikt nie prowadzi (start gry / po rundzie)
