@@ -351,6 +351,10 @@ function IdleOverlay({ players }) {
             ))}
           </div>
         )}
+        <p className="tv-idle-install">
+          📲 Dodaj do ekranu głównego (iPhone): <b>Udostępnij</b> 📤 → przewiń w dół →{' '}
+          <b>„Dodaj do ekranu głównego”</b>
+        </p>
         <p>⏳ Czekamy, aż prowadzący wpisze hasło…</p>
       </div>
     </div>

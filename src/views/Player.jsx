@@ -132,8 +132,33 @@ function JoinScreen({ onJoin, asHost = false }) {
           Dołącz do gry
         </button>
       </form>
+      <InstallHint />
       <ModeBadge />
     </div>
+  )
+}
+
+// Podpowiedź instalacji PWA — znika, gdy apka już działa z ekranu głównego
+function InstallHint() {
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    window.navigator.standalone
+  if (standalone) return null
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  return (
+    <p className="install-hint">
+      {ios ? (
+        <>
+          📲 Zainstaluj jak apkę: <b>Udostępnij</b> 📤 → przewiń w dół →{' '}
+          <b>„Dodaj do ekranu głównego”</b>
+        </>
+      ) : (
+        <>
+          📲 Zainstaluj jak apkę: menu przeglądarki <b>⋮</b> →{' '}
+          <b>„Dodaj do ekranu głównego”</b>
+        </>
+      )}
+    </p>
   )
 }
 
