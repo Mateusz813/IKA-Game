@@ -287,7 +287,9 @@ function PlayerPlaying({ s, me, myId, actions }) {
   return (
     <>
       {myTurn ? (
-        <div className="status-strip status-strip--turn">🎤 TWOJA KOLEJ — kliknij literę!</div>
+        <div className="status-strip status-strip--turn">
+          🎤 TWOJA KOLEJ — kliknij literę albo 🎯 zgadnij całe hasło!
+        </div>
       ) : (
         <div className="status-strip">
           {activeName ? (
@@ -307,10 +309,14 @@ function PlayerPlaying({ s, me, myId, actions }) {
 
       <button
         className="btn btn--gold btn--big btn--block solve-btn"
-        disabled={blocked}
+        disabled={blocked || !myTurn}
         onClick={() => setSolving(true)}
       >
-        {blocked ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery' : '🎯 Znam hasło!'}
+        {blocked
+          ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery'
+          : myTurn
+            ? '🎯 Znam hasło! (zamiast litery)'
+            : '🎯 Znam hasło! — gdy dostaniesz 🎤'}
       </button>
 
       <div className="player-kbd">
@@ -370,7 +376,7 @@ function SolveModal({ onSolve, onClose }) {
       >
         <div className="modal-emoji">🎯</div>
         <h2>Wpisz całe hasło</h2>
-        <p>Polskie znaki i wielkość liter nie mają znaczenia. Uwaga: przy pomyłce musisz poczekać na kolejną literę!</p>
+        <p>Polskie znaki i wielkość liter nie mają znaczenia. Uwaga: pomyłka kończy Twoją turę!</p>
         <input
           className="input input--phrase"
           value={text}
@@ -383,6 +389,7 @@ function SolveModal({ onSolve, onClose }) {
         {result === 'ok' && <div className="solve-result solve-result--ok">🏆 BRAWO! +100 pkt</div>}
         {result === 'wrong' && <div className="solve-result solve-result--bad">❌ Niestety, to nie to!</div>}
         {result === 'blocked' && <div className="solve-result solve-result--bad">🔒 Poczekaj na kolejną literę</div>}
+        {result === 'noturn' && <div className="solve-result solve-result--bad">🎤 Tura przeszła na kogoś innego</div>}
         {!result && (
           <>
             <button className="btn btn--gold btn--big" disabled={!text.trim()}>

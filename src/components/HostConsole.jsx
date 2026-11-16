@@ -104,7 +104,8 @@ export function HostPlaying({ s, myId, actions }) {
       <section className="panel">
         <h2>1️⃣ Kto zgaduje literę?</h2>
         <p className="hint">
-          Wskazana osoba klika literę na swoim telefonie. Potem wybierasz kolejną.
+          Wskazana osoba klika literę albo wpisuje całe hasło na swoim telefonie.
+          Potem wybierasz kolejną.
         </p>
         {!players.length && <p className="hint">Nikt jeszcze nie dołączył 🙂</p>}
         <ul className="admin-players">
@@ -133,8 +134,8 @@ export function HostPlaying({ s, myId, actions }) {
       <section className="panel">
         <h2>2️⃣ Ktoś powiedział całe hasło na głos?</h2>
         <p className="hint">
-          Gracze mogą też wpisać hasło sami (przycisk 🎯 na ich telefonach) — wtedy
-          punkty liczą się automatycznie.
+          Osoba z 🎤 może też wpisać hasło sama (przycisk 🎯 na jej telefonie) —
+          wtedy punkty liczą się automatycznie.
         </p>
         <button
           className="btn btn--gold btn--big btn--block"

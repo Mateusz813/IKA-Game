@@ -290,20 +290,23 @@ function makeActions(get) {
       sync.update(u)
     },
 
-    // 🎯 gracz wpisuje całe hasło. Zwraca 'ok' | 'wrong' | 'blocked'.
+    // 🎯 gracz z turą 🎤 wpisuje całe hasło (zamiast litery).
+    // Zwraca 'ok' | 'wrong' | 'blocked' | 'noturn'.
     solve(playerId, guess) {
       const s = get()
       const me = s.players[playerId]
       if (s.status !== 'playing' || !me || playerId === s.hostId) return 'blocked'
+      if (s.activePlayerId !== playerId) return 'noturn'
       const revealedCount = Object.keys(s.revealed).length
       if (me.solveBlock != null && me.solveBlock === revealedCount) return 'blocked'
       if (normPhrase(guess) && normPhrase(guess) === normPhrase(s.phrase)) {
         sync.update(finishRound(s, clonePlayers(s.players), playerId, 'win'))
         return 'ok'
       }
+      // pudło kończy turę, jak źle wybrana litera
       sync.update({
         ['players/' + playerId + '/solveBlock']: revealedCount,
-        ...(s.activePlayerId === playerId ? { activePlayerId: null } : {}),
+        activePlayerId: null,
         lastAction: {
           type: 'wrongSolve',
           playerId,

@@ -658,16 +658,56 @@ textarea {
   gap: 6px;
 }
 
+/* „ja” — pigułka: avatar + imię + punkty, dotknięcie otwiera menu */
 .hdr-me {
   display: flex;
   align-items: center;
-  gap: 7px;
-  background: none;
-  border: none;
+  gap: 8px;
+  background: var(--panel2);
+  border: 2px solid rgba(255, 211, 77, 0.55);
+  border-radius: 999px;
   color: #fff;
-  padding: 0;
+  padding: 3px 12px 3px 3px;
   text-align: left;
+  box-shadow: 0 0 16px rgba(255, 211, 77, 0.18);
+  transition: transform 0.07s, background 0.15s;
 }
+
+.hdr-me:active { transform: scale(0.96); }
+.hdr-me--open { background: rgba(255, 211, 77, 0.2); border-color: var(--gold); }
+
+.hdr-avatar {
+  position: relative;
+  line-height: 0;
+}
+
+.hdr-avatar-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold);
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hdr-caret {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.dd-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+.dd-item--plain { background: transparent; font-size: 14px; }
+.dd-item--danger { color: #ffb3c1; }
 
 .hdr-me-text {
   display: flex;
@@ -714,7 +754,7 @@ textarea {
 
 .dd-panel {
   position: absolute;
-  right: -46px;
+  right: 0;
   top: calc(100% + 8px);
   z-index: 41;
   width: min(290px, calc(100vw - 24px));

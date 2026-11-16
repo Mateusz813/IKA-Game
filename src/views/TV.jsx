@@ -509,7 +509,7 @@ function tickerText(a, players) {
     case 'wrongSolve':
       return `❌ ${name ?? '…'} nie zgaduje hasła`
     default:
-      return '🎯 Znasz hasło? Kliknij „Znam hasło!” na telefonie'
+      return '🎤 Masz turę i znasz hasło? Kliknij „Znam hasło!” na telefonie'
   }
 }
 
