@@ -14,9 +14,11 @@ Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **wszyscy graj�
 6. **🔁 Kolejka** — po każdym haśle prowadzenie przechodzi automatycznie na następną osobę (kto prowadził najmniej razy, potem kolejność dołączenia). Nie masz pomysłu? „Pomiń mnie”.
 7. **🏁 Koniec** — gdy każdy wymyślił swoje hasła albo ktoś dobił do limitu punktów, TV pokazuje podium. „🔄 Zagraj jeszcze raz” wraca do poczekalni.
 
-**🔊 Dźwięki** — przycisk 🔊 w nagłówku telefonu otwiera listę memicznych dźwięków, które grają na TV. Nowy dźwięk = plik w `public/sounds/` + jedna linijka w `src/lib/memes.js`. Dla „O Victorio…” (Dżem) i „Pawełek!” przygotowane są miejsca: wrzuć `public/sounds/wiktoria.mp3` i `public/sounds/pawelek.mp3`, a przyciski pojawią się same (fragment piosenki ustawiasz polami `start`/`dur` w sekundach).
+**🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady i opcje gry (pominięcie zawieszonego prowadzącego bez zdradzania hasła, koniec gry, nowa gra, wyjście). Nikt nie może usunąć innego gracza.
 
-**⚙️ Menu** (każdy telefon) — zasady gry, pominięcie zawieszonego prowadzącego (przerywa rundę bez zdradzania hasła), zakończenie gry, nowa gra od zera, opuszczenie gry. Nikt nie może usunąć innego gracza.
+Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
+- plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje, np. przygotowane `wiktoria.mp3`),
+- fragment z YouTube: `{ youtube: { id, start, end } }` — na TV wyskakuje oficjalny odtwarzacz YouTube z tym fragmentem i sam się zamyka (zasady YouTube wymagają, żeby odtwarzacz był widoczny).
 
 **Test na jednym komputerze** — w trybie `npm run dev` otwórz kilka kart `/play?as=a`, `/play?as=b`… — każda karta to osobny gracz.
 

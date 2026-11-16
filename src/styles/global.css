@@ -1060,6 +1060,63 @@ textarea {
   animation: swk-pulse 1.4s ease-in-out infinite;
 }
 
+/* okienko z fragmentem filmu YouTube (soundboard) */
+.yt-meme {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 5, 25, 0.6);
+  animation: fade-in 0.25s;
+  pointer-events: none;
+}
+
+.yt-meme-card {
+  width: min(62vw, 104vh);
+  display: flex;
+  flex-direction: column;
+  gap: 1.2vh;
+  animation: winner-pop 0.45s;
+}
+
+.yt-meme-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2vw;
+  font-size: min(4vw, 6vh);
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(255, 211, 77, 0.7);
+}
+
+.yt-meme-who {
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  font-size: 0.45em;
+  color: #fff;
+  text-shadow: none;
+}
+
+.yt-meme-frame {
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 4px solid var(--gold);
+  background: #000;
+  box-shadow: 0 0 60px rgba(255, 211, 77, 0.45), 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.yt-meme-frame > div,
+.yt-meme-frame iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 /* pieczątka-mem na TV */
 .meme-flash {
   position: fixed;

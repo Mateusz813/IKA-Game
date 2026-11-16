@@ -22,6 +22,7 @@ import {
   preloadSound,
 } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
+import YouTubeMeme from '../components/YouTubeMeme.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 // EASTER EGG: to hasło dostaje własną animację i dźwięk 💍
@@ -49,8 +50,9 @@ export default function TV() {
 
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('ika-tv-sound') !== '0')
   const audio = useAudioUnlock()
+  const [ytMeme, setYtMeme] = useState(null)
   useTvSounds(ready ? s.lastAction : null, soundOn, special)
-  useMemeSound(ready ? s.meme : null, soundOn)
+  useMemeSound(ready ? s.meme : null, soundOn, setYtMeme)
   useReportTvAudio(ready, soundOn ? audio : 'muted', s.tvAudio?.state, actions)
 
   // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
@@ -64,12 +66,23 @@ export default function TV() {
 
   if (!ready) return <Spinner />
 
-  const audioBanner =
-    soundOn && audio === 'locked' ? (
-      <button className="tv-audio-lock" onClick={() => unlockAudio()}>
-        🔇 Kliknij tutaj, żeby włączyć dźwięki gry
-      </button>
-    ) : null
+  const audioBanner = (
+    <>
+      {soundOn && audio === 'locked' && (
+        <button className="tv-audio-lock" onClick={() => unlockAudio()}>
+          🔇 Kliknij tutaj, żeby włączyć dźwięki gry
+        </button>
+      )}
+      {ytMeme && (
+        <YouTubeMeme
+          key={ytMeme.ts}
+          meme={ytMeme.def}
+          who={ytMeme.by ? s.players[ytMeme.by] : null}
+          onDone={() => setYtMeme(null)}
+        />
+      )}
+    </>
+  )
 
   const headerRight = (
     <div className="tv-header-right">
@@ -397,23 +410,25 @@ function useReportTvAudio(ready, desired, dbState, actions) {
   }, [ready, desired, dbState, actions])
 }
 
-// Dźwięk z soundboardu (tylko TV)
-function useMemeSound(meme, soundOn) {
+// Dźwięk z soundboardu (tylko TV); memy z YouTube otwierają okienko z filmem
+function useMemeSound(meme, soundOn, showYouTube) {
   const lastTs = useRef(0)
   useEffect(() => {
     if (!meme || meme.ts === lastTs.current) return
     lastTs.current = meme.ts
     if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
     const def = memeById(meme.id)
-    if (def && soundOn) sounds.meme(def)
-  }, [meme, soundOn])
+    if (!def || !soundOn) return
+    if (def.youtube) showYouTube({ def, by: meme.by, ts: meme.ts })
+    else sounds.meme(def)
+  }, [meme, soundOn, showYouTube])
 }
 
 // Napis-pieczątka przy memie z soundboardu
 function MemeFlash({ meme, players }) {
   const fresh = useFreshAction(meme, 2800)
   const def = fresh ? memeById(fresh.id) : null
-  if (!def) return null
+  if (!def || def.youtube) return null // film ma własny podpis
   const who = fresh.by ? players?.[fresh.by] : null
   return (
     <div className="meme-flash" key={fresh.ts}>
