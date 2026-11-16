@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { memeCaption } from '../lib/memes.js'
 import { Avatar } from './common.jsx'
 
 // Oficjalny YouTube IFrame Player API — ładowany raz, dopiero gdy potrzebny
@@ -31,7 +32,7 @@ export default function YouTubeMeme({ meme, who, onDone }) {
   doneRef.current = onDone
 
   useEffect(() => {
-    const { id, start, end } = meme.youtube
+    const { id, start = 0, end } = meme.youtube
     let player = null
     let closed = false
     const close = () => {
@@ -39,8 +40,9 @@ export default function YouTubeMeme({ meme, who, onDone }) {
       closed = true
       doneRef.current()
     }
-    // zapas na buforowanie, gdyby odtwarzacz nie zgłosił końca
-    const safety = setTimeout(close, (end - start + 15) * 1000)
+    // zapas na buforowanie, gdyby odtwarzacz nie zgłosił końca;
+    // bez `end` (cały film) liczymy od długości filmu po załadowaniu
+    let safety = setTimeout(close, end != null ? (end - start + 15) * 1000 : 10 * 60 * 1000)
     let kick = null
 
     loadYouTubeApi()
@@ -53,7 +55,7 @@ export default function YouTubeMeme({ meme, who, onDone }) {
           height: '100%',
           playerVars: {
             start,
-            end,
+            ...(end != null ? { end } : {}),
             autoplay: 1,
             controls: 0,
             disablekb: 1,
@@ -65,6 +67,13 @@ export default function YouTubeMeme({ meme, who, onDone }) {
           },
           events: {
             onReady: (e) => {
+              if (end == null) {
+                const total = e.target.getDuration?.() || 0
+                if (total > 0) {
+                  clearTimeout(safety)
+                  safety = setTimeout(close, (total - start + 15) * 1000)
+                }
+              }
               e.target.unMute()
               e.target.setVolume(100)
               e.target.playVideo()
@@ -100,7 +109,7 @@ export default function YouTubeMeme({ meme, who, onDone }) {
     <div className="yt-meme">
       <div className="yt-meme-card">
         <div className="yt-meme-caption">
-          {meme.caption}
+          <span className="yt-meme-title">{memeCaption(meme)}</span>
           {who && (
             <span className="yt-meme-who">
               <Avatar player={who} size="min(3vw, 4.4vh)" /> 🔊 {who.name}

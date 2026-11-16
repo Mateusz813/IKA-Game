@@ -11,7 +11,7 @@ import {
 import { useFreshAction, serverNow } from '../lib/hooks.js'
 import { sync } from '../lib/sync/index.js'
 import { ALPHABET } from '../lib/alphabet.js'
-import { MEMES, memeById } from '../lib/memes.js'
+import { MEMES, memeById, memeCaption } from '../lib/memes.js'
 import {
   sounds,
   initAudio,
@@ -381,7 +381,7 @@ function useAudioUnlock() {
     const unlock = () => unlockAudio()
     document.addEventListener('pointerdown', unlock)
     document.addEventListener('keydown', unlock)
-    MEMES.filter((m) => !m.optional).forEach((m) => preloadSound(m.src))
+    MEMES.filter((m) => m.src && !m.optional).forEach((m) => preloadSound(m.src))
     setSt(audioState())
     return () => {
       off()
@@ -432,7 +432,7 @@ function MemeFlash({ meme, players }) {
   const who = fresh.by ? players?.[fresh.by] : null
   return (
     <div className="meme-flash" key={fresh.ts}>
-      <span>{def.caption}</span>
+      <span>{memeCaption(def)}</span>
       {who && (
         <span className="meme-flash-who">
           <Avatar player={who} size="min(3.5vw, 5vh)" /> 🔊 {who.name}

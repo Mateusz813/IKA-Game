@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MEMES, memeAvailable } from '../lib/memes.js'
+import { MEMES, memeAvailable, sortedMemes } from '../lib/memes.js'
 import { clearSavedName } from '../lib/hooks.js'
 import { TvAudioHint } from './HostConsole.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, fileToAvatar } from './common.jsx'
@@ -84,14 +84,14 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
   const inGame = ['entering', 'finished', 'playing'].includes(s.status)
   const hostName = s.hostId ? s.players[s.hostId]?.name : null
   const iAmHost = s.hostId === myId
-  const [list, setList] = useState(() => MEMES.filter((m) => !m.optional))
+  const [list, setList] = useState(() => sortedMemes(MEMES.filter((m) => !m.optional)))
   const [sent, setSent] = useState(null)
   const lastAt = useRef(0)
 
   useEffect(() => {
     let alive = true
     Promise.all(MEMES.map(memeAvailable)).then((ok) => {
-      if (alive) setList(MEMES.filter((_, i) => ok[i]))
+      if (alive) setList(sortedMemes(MEMES.filter((_, i) => ok[i])))
     })
     return () => {
       alive = false
@@ -110,23 +110,24 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
       <div className="dd-panel" role="menu">
         <div className="dd-title">🔊 Puść dźwięk na TV</div>
         <TvAudioHint state={s.tvAudio?.state} />
-        {list.map((m) => (
-          <button
-            key={m.id}
-            role="menuitem"
-            className={`dd-item ${sent === m.id ? 'dd-item--sent' : ''}`}
-            onClick={() => {
-              if (Date.now() - lastAt.current < 1200) return // bez spamowania
-              lastAt.current = Date.now()
-              actions.playMeme(m.id, myId)
-              setSent(m.id)
-            }}
-          >
-            <span className="dd-emoji">{m.emoji}</span>
-            <span className="dd-label">{m.label}</span>
-            {sent === m.id && <span className="dd-ok">gra na TV ✓</span>}
-          </button>
-        ))}
+        <div className="dd-grid">
+          {list.map((m) => (
+            <button
+              key={m.id}
+              role="menuitem"
+              className={`dd-sound ${sent === m.id ? 'dd-sound--sent' : ''}`}
+              onClick={() => {
+                if (Date.now() - lastAt.current < 1200) return // bez spamowania
+                lastAt.current = Date.now()
+                actions.playMeme(m.id, myId)
+                setSent(m.id)
+              }}
+            >
+              <span className="dd-emoji">{sent === m.id ? '✓' : m.emoji}</span>
+              <span className="dd-label">{m.label}</span>
+            </button>
+          ))}
+        </div>
         <div className="dd-sep" />
         <button role="menuitem" className="dd-item dd-item--plain" onClick={onPhoto}>
           <span className="dd-emoji">📷</span>

@@ -700,6 +700,34 @@ textarea {
   opacity: 0.8;
 }
 
+/* siatka dźwięków w menu — 2 kolumny */
+.dd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.dd-sound {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  border: 2px solid transparent;
+  background: var(--panel);
+  color: #fff;
+  border-radius: 11px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  line-height: 1.15;
+}
+
+.dd-sound:active { transform: scale(0.95); }
+.dd-sound .dd-emoji { font-size: 18px; flex: none; }
+.dd-sound--sent { border-color: var(--green); background: rgba(67, 224, 138, 0.18); }
+.dd-sound--sent .dd-emoji { color: var(--green); font-weight: 900; }
+
 .dd-sep {
   height: 1px;
   background: var(--border);
@@ -757,8 +785,8 @@ textarea {
   right: 0;
   top: calc(100% + 8px);
   z-index: 41;
-  width: min(290px, calc(100vw - 24px));
-  max-height: 70vh;
+  width: min(340px, calc(100vw - 24px));
+  max-height: 72vh;
   overflow-y: auto;
   background: linear-gradient(180deg, #2a1650, #170c33);
   border: 2px solid var(--gold);
