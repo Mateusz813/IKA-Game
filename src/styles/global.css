@@ -1060,54 +1060,61 @@ textarea {
   animation: swk-pulse 1.4s ease-in-out infinite;
 }
 
-/* okienko z fragmentem filmu YouTube (soundboard) */
+/* okienko z fragmentem filmu YouTube (soundboard) — prawy górny róg,
+   bez przyciemniania planszy; YouTube wymaga min. 200 px wysokości odtwarzacza */
 .yt-meme {
   position: fixed;
-  inset: 0;
+  top: calc(9vh + env(safe-area-inset-top, 0px));
+  right: 1.6vw;
   z-index: 75;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 5, 25, 0.6);
-  animation: fade-in 0.25s;
   pointer-events: none;
+  animation: yt-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes yt-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 .yt-meme-card {
-  width: min(62vw, 104vh);
+  /* 384 px = odtwarzacz ≥ 356×200 px po odjęciu ramki i paddingu */
+  width: max(384px, min(30vw, 54vh));
   display: flex;
   flex-direction: column;
-  gap: 1.2vh;
-  animation: winner-pop 0.45s;
+  gap: 0.8vh;
+  padding: 1vh;
+  border-radius: 16px;
+  background: rgba(14, 8, 34, 0.88);
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 34px rgba(255, 211, 77, 0.35), 0 14px 40px rgba(0, 0, 0, 0.55);
 }
 
 .yt-meme-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 2vw;
-  font-size: min(4vw, 6vh);
+  gap: 1vw;
+  font-size: max(15px, min(1.7vw, 2.6vh));
   font-weight: 900;
   color: var(--gold);
-  text-shadow: 0 0 30px rgba(255, 211, 77, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .yt-meme-who {
   display: flex;
   align-items: center;
-  gap: 0.8vw;
-  font-size: 0.45em;
+  gap: 0.5vw;
+  font-size: 0.8em;
   color: #fff;
-  text-shadow: none;
+  flex: none;
 }
 
 .yt-meme-frame {
   aspect-ratio: 16 / 9;
-  border-radius: 18px;
+  border-radius: 10px;
   overflow: hidden;
-  border: 4px solid var(--gold);
   background: #000;
-  box-shadow: 0 0 60px rgba(255, 211, 77, 0.45), 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 .yt-meme-frame > div,
