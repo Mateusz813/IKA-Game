@@ -17,7 +17,7 @@ Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **wszyscy graj�
 **🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady i opcje gry (pominięcie zawieszonego prowadzącego bez zdradzania hasła, koniec gry, nowa gra, wyjście). Nikt nie może usunąć innego gracza.
 
 Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
-- plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje, np. przygotowane `wiktoria.mp3`),
+- plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje),
 - fragment z YouTube: `{ youtube: { id, start, end } }` — na TV wyskakuje oficjalny odtwarzacz YouTube z tym fragmentem i sam się zamyka (zasady YouTube wymagają, żeby odtwarzacz był widoczny).
 
 **Test na jednym komputerze** — w trybie `npm run dev` otwórz kilka kart `/play?as=a`, `/play?as=b`… — każda karta to osobny gracz.
