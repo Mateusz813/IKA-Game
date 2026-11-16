@@ -11,6 +11,7 @@ export const MEMES = [
   { id: 'familiada-zle', emoji: '❌', label: 'Familiada — źle', caption: '❌ ŹLE! ❌', src: '/sounds/familiada-zle.mp3' },
   { id: 'ale-urwal', emoji: '🤯', label: 'Ale urwał', caption: 'ALE URWAŁ! 🤯', src: '/sounds/ale-urwal.mp3' },
   { id: 'gratulacje', emoji: '🥳', label: 'Gratulacje użytkowniku', caption: 'GRATULACJE! 🥳', src: '/sounds/gratulacje.mp3', dur: 7 },
+  { id: 'iwona', emoji: '💕', label: 'Iwona', caption: '💕 IWONA 💕', youtube: { id: 'csQNoWec5TE', start: 47, end: 60 } },
   { id: 'wiktoria', emoji: '🎸', label: 'Wiktoria', caption: '🎸 O VICTORIO, MOJA VICTORIOOO… 🎸', youtube: { id: '2xuq71bLtj8', start: 235, end: 243 } },
   { id: 'pawelek-reklama', emoji: '🍫', label: 'Pawełek (reklama)', caption: 'PAWEŁEK! 🍫', youtube: { id: 'ByWlPEkB-mk', start: 6, end: 13 } },
   { id: 'pawelek', emoji: '🙋‍♂️', label: 'Był tam taki Paweł', caption: 'PAWEŁ! 🙋‍♂️', youtube: { id: 'XU14gfH0LEs', start: 12, end: 23 } },
