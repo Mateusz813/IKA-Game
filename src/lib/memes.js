@@ -12,7 +12,8 @@ export const MEMES = [
   { id: 'ale-urwal', emoji: '🤯', label: 'Ale urwał', caption: 'ALE URWAŁ! 🤯', src: '/sounds/ale-urwal.mp3' },
   { id: 'gratulacje', emoji: '🥳', label: 'Gratulacje użytkowniku', caption: 'GRATULACJE! 🥳', src: '/sounds/gratulacje.mp3', dur: 7 },
   { id: 'wiktoria', emoji: '🎸', label: 'O Victorio… (Dżem)', caption: '🎸 VICTORIOOO… 🎸', src: '/sounds/wiktoria.mp3', start: 0, dur: 7, optional: true },
-  { id: 'pawelek', emoji: '🍫', label: 'Był tam taki Paweł', caption: 'PAWEŁ! 🍫', youtube: { id: 'XU14gfH0LEs', start: 12, end: 23 } },
+  { id: 'pawelek-reklama', emoji: '🍫', label: 'Pawełek (reklama)', caption: 'PAWEŁEK! 🍫', youtube: { id: 'ByWlPEkB-mk', start: 6, end: 13 } },
+  { id: 'pawelek', emoji: '🙋‍♂️', label: 'Był tam taki Paweł', caption: 'PAWEŁ! 🙋‍♂️', youtube: { id: 'XU14gfH0LEs', start: 12, end: 23 } },
 ]
 
 export const memeById = (id) => MEMES.find((m) => m.id === id)
