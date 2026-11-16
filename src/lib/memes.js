@@ -11,13 +11,14 @@ export const MEMES = [
   { id: 'familiada-zle', emoji: '❌', label: 'Familiada — źle', caption: '❌ ŹLE! ❌', src: '/sounds/familiada-zle.mp3' },
   { id: 'ale-urwal', emoji: '🤯', label: 'Ale urwał', caption: 'ALE URWAŁ! 🤯', src: '/sounds/ale-urwal.mp3' },
   { id: 'gratulacje', emoji: '🥳', label: 'Gratulacje użytkowniku', caption: 'GRATULACJE! 🥳', src: '/sounds/gratulacje.mp3', dur: 7 },
-  { id: 'iwona', emoji: '💕', label: 'Iwona', caption: '💕 IWONA 💕', youtube: { id: 'csQNoWec5TE', start: 47, end: 60 } },
+  // Imię + numer w kolejności dodawania (Iwona 1, Iwona 2, Paweł 1…)
+  { id: 'iwona', emoji: '💕', label: 'Iwona 1', caption: '💕 IWONA 💕', youtube: { id: 'csQNoWec5TE', start: 47, end: 60 } },
   { id: 'iwona-2', emoji: '💍', label: 'Iwona 2', caption: '💍 MOJA ŻONA IWONA 💍', youtube: { id: 'lP_Va5_gldU', start: 0, end: 6 } },
-  { id: 'mateusz', emoji: '🕺', label: 'Mateusz', caption: '🕺 MATEUSZ, WAJCHĘ PRZEŁÓŻ! 🕺', youtube: { id: 'NSD_TfnWttI', start: 27, end: 36 } },
+  { id: 'mateusz', emoji: '🕺', label: 'Mateusz 1', caption: '🕺 MATEUSZ, WAJCHĘ PRZEŁÓŻ! 🕺', youtube: { id: 'NSD_TfnWttI', start: 27, end: 36 } },
   { id: 'mateusz-2', emoji: '🎤', label: 'Mateusz 2', caption: '🎤 MATEUSZ! 🎤', youtube: { id: 'l7ZpbW_O5To', start: 0, end: 7 } },
-  { id: 'wiktoria', emoji: '🎸', label: 'Wiktoria', caption: '🎸 O VICTORIO, MOJA VICTORIOOO… 🎸', youtube: { id: '2xuq71bLtj8', start: 235, end: 243 } },
-  { id: 'pawelek-reklama', emoji: '🍫', label: 'Pawełek (reklama)', caption: 'PAWEŁEK! 🍫', youtube: { id: 'ByWlPEkB-mk', start: 6, end: 13 } },
-  { id: 'pawelek', emoji: '🙋‍♂️', label: 'Był tam taki Paweł', caption: 'PAWEŁ! 🙋‍♂️', youtube: { id: 'XU14gfH0LEs', start: 12, end: 23 } },
+  { id: 'pawelek', emoji: '🙋‍♂️', label: 'Paweł 1', caption: 'PAWEŁ! 🙋‍♂️', youtube: { id: 'XU14gfH0LEs', start: 12, end: 23 } },
+  { id: 'pawelek-reklama', emoji: '🍫', label: 'Paweł 2', caption: 'PAWEŁEK! 🍫', youtube: { id: 'ByWlPEkB-mk', start: 6, end: 13 } },
+  { id: 'wiktoria', emoji: '🎸', label: 'Wiktoria 1', caption: '🎸 O VICTORIO, MOJA VICTORIOOO… 🎸', youtube: { id: '2xuq71bLtj8', start: 235, end: 243 } },
 ]
 
 export const memeById = (id) => MEMES.find((m) => m.id === id)
