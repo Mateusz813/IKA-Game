@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react'
+import { sync } from './sync/index.js'
+
+// Czas zsynchronizowany z serwerem — znaczniki ts pisze jedno urządzenie,
+// a porównuje inne, więc lokalny zegar mógłby się rozjechać.
+export const serverNow = () => sync.now()
 
 // Zwraca lastAction tylko przez `ms` od jego powstania — do sterowania animacjami.
 export function useFreshAction(action, ms = 3500) {
   const [, tick] = useState(0)
-  const fresh = !!action && Date.now() - action.ts < ms
+  const age = action ? serverNow() - action.ts : Infinity
+  const fresh = !!action && age < ms
   useEffect(() => {
     if (!fresh) return
-    const t = setTimeout(() => tick((x) => x + 1), ms - (Date.now() - action.ts) + 50)
+    const t = setTimeout(
+      () => tick((x) => x + 1),
+      Math.min(ms, ms - (serverNow() - action.ts)) + 50
+    )
     return () => clearTimeout(t)
   }, [action?.ts, fresh, ms])
   return fresh ? action : null

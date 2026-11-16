@@ -1,24 +1,105 @@
-// Dźwięki syntezowane WebAudio — zero plików, działa offline.
-// Używane WYŁĄCZNIE w trybie TV.
+// Dźwięki TV: syntezowane tony WebAudio + nagrania (mem, „please”) grane
+// z buforów przez ten sam AudioContext. Używane WYŁĄCZNIE w trybie TV.
+//
+// Przeglądarki blokują dźwięk, dopóki ktoś nie kliknie w stronę. Kontekst
+// startuje wtedy jako „suspended” — wykrywamy to (audioState) i TV pokazuje
+// baner „kliknij, żeby włączyć dźwięk”, zamiast po cichu milczeć.
 let ctx = null
-let pleaseAudio = null
-let memeAudio = null
+const buffers = new Map() // src -> Promise<AudioBuffer>
+const listeners = new Set()
+let pleaseSources = []
+let memeSources = []
+
+function notify() {
+  const st = audioState()
+  listeners.forEach((f) => f(st))
+}
+
+export function initAudio() {
+  try {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)()
+      ctx.addEventListener?.('statechange', notify)
+    }
+  } catch { /* brak WebAudio */ }
+  return ctx
+}
+
+export function unlockAudio() {
+  initAudio()
+  try {
+    if (ctx && ctx.state !== 'running') ctx.resume().then(notify, notify)
+  } catch { /* ignore */ }
+  return ctx
+}
+
+// 'on' — dźwięk gra; 'locked' — przeglądarka czeka na kliknięcie
+export const audioState = () => (ctx && ctx.state === 'running' ? 'on' : 'locked')
+
+export function onAudioStateChange(f) {
+  listeners.add(f)
+  return () => listeners.delete(f)
+}
+
+const running = () => ctx && ctx.state === 'running'
+
+function loadBuffer(src) {
+  if (!buffers.has(src)) {
+    initAudio()
+    const p = fetch(src)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.arrayBuffer()
+      })
+      .then(
+        (data) =>
+          new Promise((res, rej) => ctx.decodeAudioData(data, res, rej))
+      )
+    p.catch(() => buffers.delete(src)) // pozwól spróbować ponownie
+    buffers.set(src, p)
+  }
+  return buffers.get(src)
+}
+
+export const preloadSound = (src) => loadBuffer(src).catch(() => {})
+
+// Odtwarza nagranie `times` razy pod rząd; zwraca listę źródeł (do stop)
+async function playFile(src, times = 1, vol = 1) {
+  if (!running()) return []
+  const buf = await loadBuffer(src)
+  if (!running()) return []
+  const gain = ctx.createGain()
+  gain.gain.value = vol
+  gain.connect(ctx.destination)
+  const t0 = ctx.currentTime + 0.03
+  const out = []
+  for (let i = 0; i < times; i++) {
+    const s = ctx.createBufferSource()
+    s.buffer = buf
+    s.connect(gain)
+    s.start(t0 + i * buf.duration)
+    out.push(s)
+  }
+  return out
+}
+
+const stopAll = (list) =>
+  list.forEach((s) => {
+    try {
+      s.stop()
+    } catch { /* już zatrzymane */ }
+  })
 
 // zatrzymuje nagranie „please” (np. gdy zaczyna się nowa runda)
 export function stopPlease() {
-  if (pleaseAudio) {
-    try {
-      pleaseAudio.pause()
-    } catch { /* ignore */ }
-    pleaseAudio = null
-  }
+  stopAll(pleaseSources)
+  pleaseSources = []
   try {
     window.speechSynthesis?.cancel()
   } catch { /* ignore */ }
 }
 
-// awaryjnie, gdy nagranie nie chce się odtworzyć (kodek/autoplay):
-// synteza mowy + pozytywka jak wcześniej
+// awaryjnie, gdy nagranie nie chce się odtworzyć: synteza mowy + pozytywka
 function pleaseFallback() {
   const untilMs = Date.now() + 10000
   try {
@@ -37,7 +118,7 @@ function pleaseFallback() {
       speak()
     }
   } catch { /* ignore */ }
-  if (!ctx) return
+  if (!running()) return
   const t0 = ctx.currentTime + 0.05
   const melody = [523.25, 659.25, 783.99, 987.77, 1046.5, 987.77, 783.99, 659.25]
   for (let rep = 0; rep < 8; rep++) {
@@ -45,14 +126,6 @@ function pleaseFallback() {
       tone({ freq: f, type: 'sine', t0: t0 + rep * 1.28 + i * 0.16, dur: 0.3, vol: 0.06 })
     })
   }
-}
-
-export function unlockAudio() {
-  try {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
-    if (ctx.state === 'suspended') ctx.resume()
-  } catch { /* brak WebAudio — trudno, gramy bez dźwięku */ }
-  return ctx
 }
 
 function tone({ freq, type = 'sine', t0, dur, vol = 0.25, slideTo = null }) {
@@ -75,7 +148,7 @@ function tone({ freq, type = 'sine', t0, dur, vol = 0.25, slideTo = null }) {
 export const sounds = {
   // jasny „ding” na każdy odsłaniany kafelek — w rytmie animacji odkrywania (0.35s)
   hit(count = 1) {
-    if (!unlockAudio()) return
+    if (!running()) return
     const base = ctx.currentTime + 0.05
     for (let i = 0; i < Math.min(count, 8); i++) {
       const t = base + i * 0.35
@@ -86,7 +159,7 @@ export const sounds = {
 
   // buzzer „womp womp” przy pudle
   miss() {
-    if (!unlockAudio()) return
+    if (!running()) return
     const t = ctx.currentTime + 0.03
     tone({ freq: 200, type: 'sawtooth', t0: t, dur: 0.28, vol: 0.15, slideTo: 150 })
     tone({ freq: 150, type: 'sawtooth', t0: t + 0.3, dur: 0.45, vol: 0.17, slideTo: 95 })
@@ -94,39 +167,28 @@ export const sounds = {
 
   // EASTER EGG „świadkowa”: nagranie please.m4a (audio z please.mov) ×10
   please() {
-    unlockAudio()
     stopPlease()
-    let plays = 0
-    const a = new Audio('/icons/please.m4a')
-    pleaseAudio = a
-    a.preload = 'auto'
-    a.volume = 1
-    a.addEventListener('ended', () => {
-      plays++
-      if (plays < 10 && pleaseAudio === a) {
-        a.currentTime = 0
-        a.play().catch(() => {})
-      }
-    })
-    a.play().catch(() => pleaseFallback())
+    if (!running()) return
+    playFile('/icons/please.m4a', 10).then(
+      (srcs) => (pleaseSources = srcs),
+      () => pleaseFallback()
+    )
   },
 
-  // soundboard: odtwórz nagranie-mem (np. „płakał”); nowe kliknięcie
-  // przerywa poprzednie
+  // soundboard: nagranie-mem; nowe kliknięcie przerywa poprzednie
   meme(src) {
-    unlockAudio()
-    try {
-      memeAudio?.pause()
-    } catch { /* ignore */ }
-    const a = new Audio(src)
-    memeAudio = a
-    a.volume = 1
-    a.play().catch(() => { /* brak pliku / autoplay — po prostu cisza */ })
+    stopAll(memeSources)
+    memeSources = []
+    if (!running()) return
+    playFile(src, 1).then(
+      (srcs) => (memeSources = srcs),
+      (err) => console.warn('[IKA] Nie udało się odtworzyć', src, err)
+    )
   },
 
   // fanfary przy odgadnięciu hasła / podium
   win() {
-    if (!unlockAudio()) return
+    if (!running()) return
     const t0 = ctx.currentTime + 0.05
     const notes = [523.25, 659.25, 783.99, 1046.5]
     notes.forEach((f, i) => {

@@ -13,8 +13,16 @@ export function createFirebaseSync(config) {
   const db = getDatabase(app)
   const gameRef = ref(db, 'game')
 
+  // Różnica między zegarem urządzenia a zegarem serwera Firebase — dzięki niej
+  // telefon i TV porównują znaczniki czasu na jednym, wspólnym zegarze.
+  let offset = 0
+  onValue(ref(db, '.info/serverTimeOffset'), (snap) => {
+    offset = snap.val() || 0
+  })
+
   return {
     mode: 'firebase',
+    now: () => Date.now() + offset,
     subscribe(f) {
       return onValue(
         gameRef,
@@ -35,6 +43,13 @@ export function createFirebaseSync(config) {
           onDisconnect(onlineRef).set(false)
           set(onlineRef, true)
         }
+      })
+    },
+    // TV zgłasza stan dźwięku; po zamknięciu karty serwer sam ustawi „off”
+    tvPresence() {
+      const tvRef = ref(db, 'game/tvAudio')
+      return onValue(ref(db, '.info/connected'), (snap) => {
+        if (snap.val()) onDisconnect(tvRef).set({ state: 'off' })
       })
     },
   }

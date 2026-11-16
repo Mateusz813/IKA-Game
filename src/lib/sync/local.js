@@ -37,8 +37,9 @@ export function createLocalSync() {
     if (e.key === KEY) emit()
   })
 
-  return {
+  const self = {
     mode: 'local',
+    now: () => Date.now(),
     subscribe(f) {
       listeners.add(f)
       f(read())
@@ -52,5 +53,11 @@ export function createLocalSync() {
       chan?.postMessage(1)
     },
     presence() {},
+    tvPresence() {
+      const off = () => self.update({ tvAudio: { state: 'off' } })
+      window.addEventListener('pagehide', off)
+      return () => window.removeEventListener('pagehide', off)
+    },
   }
+  return self
 }

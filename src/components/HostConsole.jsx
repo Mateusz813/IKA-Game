@@ -221,16 +221,6 @@ function GamePanel({ s, actions, hostId }) {
         </div>
       )}
 
-      <div className="meme-row">
-        <button
-          className="btn btn--small"
-          title="Puszcza dźwięk na telewizorze"
-          onClick={() => actions.playMeme('plakal')}
-        >
-          😭 Płakał! <span className="meme-note">· dźwięk na TV</span>
-        </button>
-      </div>
-
       {picker === 'award' && (
         <PlayerPicker
           title="Kto odgadnął hasło?"
@@ -333,6 +323,37 @@ function OverPanel({ s, actions }) {
   )
 }
 
+// Co dzieje się z dźwiękiem na TV — żeby prowadzący wiedział, czemu cisza
+function TvAudioHint({ state }) {
+  if (state === 'on') return null
+  const text =
+    state === 'locked'
+      ? '🔇 Telewizor ma zablokowany dźwięk — kliknij raz w ekran TV'
+      : state === 'muted'
+        ? '🔇 Dźwięk na TV jest wyłączony — włącz 🔊 w rogu telewizora'
+        : '📺 Telewizor nie jest podłączony — otwórz grę na TV (Telewizor)'
+  return <p className="tv-audio-hint">{text}</p>
+}
+
+// Ikonka 😭 — puszcza „płakał” na TV z avatarem tego gracza
+function CryButton({ player, onCry }) {
+  const [sent, setSent] = useState(0)
+  return (
+    <button
+      key={sent}
+      className={`cry-btn ${sent ? 'cry-btn--sent' : ''}`}
+      title={`${player.name} płakał! (dźwięk na TV)`}
+      aria-label={`Puść „płakał” dla ${player.name}`}
+      onClick={() => {
+        onCry(player.id)
+        setSent((x) => x + 1)
+      }}
+    >
+      😭
+    </button>
+  )
+}
+
 function PlayersPanel({ s, actions, hostId }) {
   const players = sortedPlayers(s.players)
   const playing = s.status === 'playing'
@@ -350,6 +371,10 @@ function PlayersPanel({ s, actions, hostId }) {
           🎤 wyznacz osobę — tylko ona może wtedy kliknąć literę na swoim telefonie
         </p>
       )}
+      {players.length > 0 && (
+        <p className="hint">😭 przy imieniu = „płakał!” na telewizorze</p>
+      )}
+      {players.length > 0 && <TvAudioHint state={s.tvAudio?.state} />}
       <ul className="admin-players">
         {players.map((p) => {
           const active = s.activePlayerId === p.id
@@ -361,6 +386,7 @@ function PlayersPanel({ s, actions, hostId }) {
               <span className="admin-player-name">
                 {p.id === s.hostId ? '🎩 ' : ''}{p.name}
               </span>
+              <CryButton player={p} onCry={(id) => actions.playMeme('plakal', id)} />
               <span className="admin-player-score">{p.score || 0} pkt</span>
               {isMe ? (
                 <span className="host-tag">to Ty</span>

@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import confetti from '../lib/confetti.js'
 import { useGame, sortedPlayers, usedInfo } from '../lib/store.jsx'
-import { useFreshAction } from '../lib/hooks.js'
+import { useFreshAction, serverNow } from '../lib/hooks.js'
+import { sync } from '../lib/sync/index.js'
 import { ALPHABET } from '../lib/alphabet.js'
-import { sounds, unlockAudio, stopPlease } from '../lib/sound.js'
+import {
+  sounds,
+  initAudio,
+  unlockAudio,
+  stopPlease,
+  audioState,
+  onAudioStateChange,
+  preloadSound,
+} from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
@@ -21,7 +30,7 @@ const isSpecialPhrase = (p) =>
     .trim() === SPECIAL_PHRASE
 
 export default function TV() {
-  const { state, ready } = useGame()
+  const { state, ready, actions } = useGame()
   useWakeLock()
   const special = ready && isSpecialPhrase(state.phrase)
   useConfetti(
@@ -30,22 +39,30 @@ export default function TV() {
   const [soundOn, setSoundOn] = useState(
     () => localStorage.getItem('ika-tv-sound') !== '0'
   )
+  const audio = useAudioUnlock()
   useTvSounds(ready ? state.lastAction : null, soundOn, special)
   useMemeSound(ready ? state.meme : null, soundOn)
+  useReportTvAudio(ready, soundOn ? audio : 'muted', state.tvAudio?.state, actions)
 
   // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
   useEffect(() => {
     if (special) {
       const img = new Image()
       img.src = '/icons/shrek-cat.png'
-      const preload = new Audio('/icons/please.m4a')
-      preload.preload = 'auto'
+      preloadSound('/icons/please.m4a')
     }
   }, [special])
 
   if (!ready) return <Spinner />
   const s = state
   const players = sortedPlayers(s.players)
+
+  const audioBanner =
+    soundOn && audio === 'locked' ? (
+      <button className="tv-audio-lock" onClick={() => unlockAudio()}>
+        🔇 Kliknij tutaj, żeby włączyć dźwięki gry
+      </button>
+    ) : null
 
   const soundBtn = (
     <button
@@ -62,10 +79,18 @@ export default function TV() {
     </button>
   )
 
-  if (s.status === 'over') return <TVOver s={s} players={players} soundBtn={soundBtn} />
+  if (s.status === 'over')
+    return (
+      <>
+        <TVOver s={s} players={players} soundBtn={soundBtn} />
+        <MemeFlash meme={s.meme} players={s.players} />
+        {audioBanner}
+      </>
+    )
 
   return (
     <div className="tv">
+      {audioBanner}
       <header className="tv-header">
         <Logo small />
         {s.category && s.status !== 'idle' && (
@@ -89,7 +114,7 @@ export default function TV() {
         <MissOverlay lastAction={s.lastAction} />
       </main>
 
-      <MemeFlash meme={s.meme} />
+      <MemeFlash meme={s.meme} players={s.players} />
 
       {s.status === 'finished' ? (
         <WinnerBanner s={s} />
@@ -233,26 +258,72 @@ function WinOverlay({ s }) {
   )
 }
 
+// Stan dźwięku TV ('on' | 'locked'); pierwszy klik/klawisz na stronie odblokowuje
+function useAudioUnlock() {
+  const [st, setSt] = useState(() => {
+    initAudio()
+    return audioState()
+  })
+  useEffect(() => {
+    const off = onAudioStateChange(setSt)
+    const unlock = () => unlockAudio()
+    document.addEventListener('pointerdown', unlock)
+    document.addEventListener('keydown', unlock)
+    preloadSound(MEMES.plakal.src)
+    setSt(audioState())
+    return () => {
+      off()
+      document.removeEventListener('pointerdown', unlock)
+      document.removeEventListener('keydown', unlock)
+    }
+  }, [])
+  return st
+}
+
+// TV zapisuje w bazie, czy jej dźwięk działa — prowadzący widzi to na telefonie.
+// Ponawiamy zapis tylko, gdy zmienia się nasz stan albo serwer oznaczył TV
+// jako „off” (np. po przeładowaniu karty) — bez przepychanki dwóch TV.
+function useReportTvAudio(ready, desired, dbState, actions) {
+  const last = useRef(null)
+  useEffect(() => {
+    if (!ready) return
+    return sync.tvPresence?.()
+  }, [ready])
+  useEffect(() => {
+    if (!ready) return
+    if (last.current !== desired || !dbState || dbState === 'off') {
+      last.current = desired
+      actions.setTvAudio(desired)
+    }
+  }, [ready, desired, dbState, actions])
+}
+
 // Dźwięk z soundboardu prowadzącego (tylko TV)
 function useMemeSound(meme, soundOn) {
   const lastTs = useRef(0)
   useEffect(() => {
     if (!meme || meme.ts === lastTs.current) return
     lastTs.current = meme.ts
-    if (Date.now() - meme.ts > 4000) return // stare zdarzenia pomijamy
+    if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
     const def = MEMES[meme.id]
     if (def && soundOn) sounds.meme(def.src)
   }, [meme, soundOn])
 }
 
-// Napis-pieczątka przy memie z soundboardu
-function MemeFlash({ meme }) {
-  const fresh = useFreshAction(meme, 2600)
+// Napis-pieczątka przy memie z soundboardu: avatar + „OLA PŁAKAŁ! 😭”
+function MemeFlash({ meme, players }) {
+  const fresh = useFreshAction(meme, 2800)
   const def = fresh ? MEMES[fresh.id] : null
   if (!def) return null
+  const who = fresh.targetId ? players?.[fresh.targetId] : null
   return (
     <div className="meme-flash" key={fresh.ts}>
-      {def.caption}
+      {who && (
+        <span className="meme-flash-who">
+          <Avatar player={who} size="min(7vw, 10vh)" /> {who.name}
+        </span>
+      )}
+      <span>{def.caption}</span>
     </div>
   )
 }
@@ -261,22 +332,11 @@ function MemeFlash({ meme }) {
 function useTvSounds(lastAction, soundOn, special = false) {
   const lastTs = useRef(0)
 
-  // pierwszy klik/dotyk na TV odblokowuje audio (polityka autoplay)
-  useEffect(() => {
-    const unlock = () => unlockAudio()
-    document.addEventListener('pointerdown', unlock)
-    document.addEventListener('keydown', unlock)
-    return () => {
-      document.removeEventListener('pointerdown', unlock)
-      document.removeEventListener('keydown', unlock)
-    }
-  }, [])
-
   useEffect(() => {
     const a = lastAction
     if (!a || a.ts === lastTs.current) return
     lastTs.current = a.ts
-    if (Date.now() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
+    if (serverNow() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
     if (!soundOn) return
     if (special && (a.type === 'win' || a.type === 'end')) sounds.please()
     else if (a.type === 'hit') sounds.hit(a.count)

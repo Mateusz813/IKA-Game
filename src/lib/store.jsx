@@ -65,7 +65,7 @@ export function GameProvider({ children }) {
 
 export const useGame = () => useContext(Ctx)
 
-const now = () => Date.now()
+const now = () => sync.now()
 
 function makeActions(get) {
   return {
@@ -238,9 +238,16 @@ function makeActions(get) {
       })
     },
 
-    // soundboard prowadzącego — memiczny dźwięk odtwarzany na TV
-    playMeme(id) {
-      sync.update({ meme: { id, ts: now() } })
+    // soundboard prowadzącego — memiczny dźwięk odtwarzany na TV,
+    // targetId = gracz, przy którym kliknięto ikonkę (pokazujemy go na TV)
+    playMeme(id, targetId = null) {
+      sync.update({ meme: { id, targetId, ts: now() } })
+    },
+
+    // TV raportuje stan dźwięku: on | locked | muted (off ustawia serwer)
+    setTvAudio(state) {
+      if (get().tvAudio?.state === state) return
+      sync.update({ tvAudio: { state, ts: now() } })
     },
 
     // ——— koniec gry: podium na TV ———
