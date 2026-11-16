@@ -221,6 +221,16 @@ function GamePanel({ s, actions, hostId }) {
         </div>
       )}
 
+      <div className="meme-row">
+        <button
+          className="btn btn--small"
+          title="Puszcza dźwięk na telewizorze"
+          onClick={() => actions.playMeme('plakal')}
+        >
+          😭 Płakał! <span className="meme-note">· dźwięk na TV</span>
+        </button>
+      </div>
+
       {picker === 'award' && (
         <PlayerPicker
           title="Kto odgadnął hasło?"

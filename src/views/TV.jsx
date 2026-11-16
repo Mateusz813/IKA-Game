@@ -7,6 +7,11 @@ import { sounds, unlockAudio, stopPlease } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
+// Soundboard prowadzącego — dźwięki-memy grane na TV (pliki w /public/icons)
+const MEMES = {
+  plakal: { src: '/icons/plakal.mp3', caption: 'PŁAKAŁ! 😭' },
+}
+
 // EASTER EGG: to hasło dostaje własną animację i dźwięk 💍
 const SPECIAL_PHRASE = 'CZY ZOSTANIESZ MOJĄ ŚWIADKOWĄ'
 const isSpecialPhrase = (p) =>
@@ -26,6 +31,7 @@ export default function TV() {
     () => localStorage.getItem('ika-tv-sound') !== '0'
   )
   useTvSounds(ready ? state.lastAction : null, soundOn, special)
+  useMemeSound(ready ? state.meme : null, soundOn)
 
   // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
   useEffect(() => {
@@ -82,6 +88,8 @@ export default function TV() {
         {s.status === 'idle' && <IdleOverlay players={players} />}
         <MissOverlay lastAction={s.lastAction} />
       </main>
+
+      <MemeFlash meme={s.meme} />
 
       {s.status === 'finished' ? (
         <WinnerBanner s={s} />
@@ -221,6 +229,30 @@ function WinOverlay({ s }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Dźwięk z soundboardu prowadzącego (tylko TV)
+function useMemeSound(meme, soundOn) {
+  const lastTs = useRef(0)
+  useEffect(() => {
+    if (!meme || meme.ts === lastTs.current) return
+    lastTs.current = meme.ts
+    if (Date.now() - meme.ts > 4000) return // stare zdarzenia pomijamy
+    const def = MEMES[meme.id]
+    if (def && soundOn) sounds.meme(def.src)
+  }, [meme, soundOn])
+}
+
+// Napis-pieczątka przy memie z soundboardu
+function MemeFlash({ meme }) {
+  const fresh = useFreshAction(meme, 2600)
+  const def = fresh ? MEMES[fresh.id] : null
+  if (!def) return null
+  return (
+    <div className="meme-flash" key={fresh.ts}>
+      {def.caption}
     </div>
   )
 }

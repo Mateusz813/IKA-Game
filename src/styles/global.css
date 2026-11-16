@@ -648,6 +648,44 @@ textarea {
   padding: 11px 14px;
 }
 
+/* soundboard prowadzącego */
+.meme-row {
+  text-align: center;
+  margin-top: 12px;
+}
+
+.meme-note {
+  opacity: 0.55;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* pieczątka-mem na TV */
+.meme-flash {
+  position: fixed;
+  top: 16vh;
+  left: 50%;
+  z-index: 46;
+  pointer-events: none;
+  font-size: min(9vw, 13vh);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+  text-shadow:
+    0 0 44px rgba(255, 211, 77, 0.85),
+    0 5px 0 #8a5c00,
+    0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: meme-pop 2.6s both;
+}
+
+@keyframes meme-pop {
+  0% { transform: translateX(-50%) rotate(-18deg) scale(0.2); opacity: 0; }
+  12% { transform: translateX(-50%) rotate(-7deg) scale(1.18); opacity: 1; }
+  22% { transform: translateX(-50%) rotate(-7deg) scale(1); }
+  78% { opacity: 1; transform: translateX(-50%) rotate(-7deg) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(-7deg) scale(1.05); }
+}
+
 .picker-next { color: var(--teal); font-weight: 900; }
 .picker-name {
   overflow: hidden;

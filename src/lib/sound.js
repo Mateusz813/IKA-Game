@@ -2,6 +2,7 @@
 // Używane WYŁĄCZNIE w trybie TV.
 let ctx = null
 let pleaseAudio = null
+let memeAudio = null
 
 // zatrzymuje nagranie „please” (np. gdy zaczyna się nowa runda)
 export function stopPlease() {
@@ -108,6 +109,19 @@ export const sounds = {
       }
     })
     a.play().catch(() => pleaseFallback())
+  },
+
+  // soundboard: odtwórz nagranie-mem (np. „płakał”); nowe kliknięcie
+  // przerywa poprzednie
+  meme(src) {
+    unlockAudio()
+    try {
+      memeAudio?.pause()
+    } catch { /* ignore */ }
+    const a = new Audio(src)
+    memeAudio = a
+    a.volume = 1
+    a.play().catch(() => { /* brak pliku / autoplay — po prostu cisza */ })
   },
 
   // fanfary przy odgadnięciu hasła / podium

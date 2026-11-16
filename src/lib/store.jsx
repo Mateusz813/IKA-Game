@@ -20,6 +20,7 @@ const EMPTY = {
   winnerId: null,
   hostId: null, // null = prowadzi gospodarz (urządzenie /admin), inaczej id gracza
   handover: null, // { toId, ts } — oczekująca propozycja przejęcia prowadzenia
+  meme: null, // { id, ts } — soundboard prowadzącego, dźwięk gra na TV
   lastAction: null, // { type, letter, count, playerId, ts }
   round: 0,
 }
@@ -235,6 +236,11 @@ function makeActions(get) {
         handover: null,
         lastAction: { type: 'host', playerId: null, ts: now() },
       })
+    },
+
+    // soundboard prowadzącego — memiczny dźwięk odtwarzany na TV
+    playMeme(id) {
+      sync.update({ meme: { id, ts: now() } })
     },
 
     // ——— koniec gry: podium na TV ———
