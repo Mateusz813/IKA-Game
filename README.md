@@ -1,20 +1,24 @@
 # 🎡 WIMP Game — domowe Koło Fortuny
 
-Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **prowadzący steruje grą z telefonu**, a **gracze zgadują litery ze swoich telefonów** w czasie rzeczywistym.
+Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **wszyscy grają na swoich telefonach**, a **hasła wymyśla każdy po kolei** — w czasie rzeczywistym.
 
 ## Jak się gra
 
-1. **TV** — na telewizorze otwierasz `https://twoja-domena.vercel.app/tv` (pełny ekran: przycisk ⛶). Widać planszę, punkty, kod QR do dołączenia.
-2. **Gracze** — wszyscy (łącznie z prowadzącym!) skanują QR z telewizora (albo wchodzą na `/play`), wpisują imię, mogą zrobić sobie zdjęcie-avatar.
-3. **Prowadzenie krąży**: kafelek **„Admin"** na starcie to zwykłe dołączenie do gry + przejęcie pilota (Ty podajesz pierwsze hasło); można też w każdej chwili kliknąć **„🎩 Poprowadzę"** w widoku gracza, gdy pilot jest wolny. Prowadzący to zwykły gracz — punkty ma dalej, tylko w swojej rundzie nie zgaduje. **Hasło widzi wyłącznie osoba, która je wpisała** — nikt nie może przejąć prowadzenia w trakcie rundy; tylko prowadzący przekazuje pilota dalej. Pod `/admin` jest wyłącznie panel awaryjny (przerwanie rundy, podium, resety — bez podglądu hasła).
-4. Prowadzący **daje turę** wybranemu graczowi (🎤). Tylko on może wtedy kliknąć literę.
-   - Trafiona litera → odsłania się na TV z animacją, gracz dostaje **10 pkt za każde wystąpienie** litery (np. 3×A = 30 pkt), po czym tura wraca do prowadzącego.
-   - Pudło → czerwony ✗ na TV, tura wraca do prowadzącego.
-   - Prowadzący może też **sam klikać litery** (np. gdy ktoś bez telefonu podaje literę na głos) — punkty dostaje gracz, który aktualnie ma turę (jeśli jest).
-5. Gdy ktoś odgadnie całe hasło na głos, prowadzący klika przy nim **🏆** → gracz dostaje **100 pkt**, hasło się odsłania, konfetti 🎉.
-6. Po zakończonym haśle prowadzący wybiera: **prowadzi dalej** albo **przekazuje pilota** — lista podpowiada rotację (▶ przy osobie, która najdawniej prowadziła, więc hasła podaje każdy po kolei). Wybrany akceptuje na telefonie i przejmuje prowadzenie. Punkty cały czas się kumulują.
-7. Gracze mogą przy dołączaniu **zrobić sobie zdjęcie** (avatar) — pokazuje się na TV, w rankingach i na podium. Bez zdjęcia — kolorowe kółko z inicjałami.
-8. Przycisk **🏁 Zakończ grę** u gospodarza pokazuje na TV **podium** (top 3 + reszta stawki) z avatarami i punktami. Potem: gra dalej z punktami, nowa gra od zera albo **⏮ pełny reset od początku** (usuwa też graczy).
+1. **📺 TV** — otwierasz `https://ika-game.vercel.app/tv` (pełny ekran: ⛶). Widać poczekalnię z dużym kodem QR. Kliknij raz w ekran, żeby przeglądarka pozwoliła grać dźwiękom.
+2. **📱 Poczekalnia** — każdy (Ty też) skanuje QR, wpisuje imię i może zrobić sobie zdjęcie-avatar. W poczekalni ustawiacie **„Ile gramy?”**: każdy wymyśla 1 hasło / 2 hasła / do 300 pkt / do 500 pkt.
+3. **▶ Zaczynamy** — kto kliknie, ten wymyśla pierwsze hasło. Hasło widzi **wyłącznie** osoba, która je wpisuje.
+4. **Runda** — prowadzący wskazuje 🎤, kto zgaduje literę; ta osoba klika literę na swoim telefonie.
+   - Trafiona litera → odsłania się na TV, **10 pkt za każde wystąpienie** (3×A = 30 pkt).
+   - Pudło → czerwony ✗ na TV. Po każdej literze prowadzący wybiera kolejną osobę.
+5. **🎯 Znam hasło!** — każdy gracz w dowolnej chwili może wpisać całe hasło (polskie znaki i wielkość liter bez znaczenia). Dobrze → **+100 pkt**. Źle → wpadka na TV i blokada do odsłonięcia kolejnej litery. Gdy ktoś powie hasło na głos, prowadzący przyznaje punkty przyciskiem 🏆.
+6. **🔁 Kolejka** — po każdym haśle prowadzenie przechodzi automatycznie na następną osobę (kto prowadził najmniej razy, potem kolejność dołączenia). Nie masz pomysłu? „Pomiń mnie”.
+7. **🏁 Koniec** — gdy każdy wymyślił swoje hasła albo ktoś dobił do limitu punktów, TV pokazuje podium. „🔄 Zagraj jeszcze raz” wraca do poczekalni.
+
+**🔊 Dźwięki** — przycisk 🔊 w nagłówku telefonu otwiera listę memicznych dźwięków, które grają na TV. Nowy dźwięk = plik w `public/sounds/` + jedna linijka w `src/lib/memes.js`. Dla „O Victorio…” (Dżem) i „Pawełek!” przygotowane są miejsca: wrzuć `public/sounds/wiktoria.mp3` i `public/sounds/pawelek.mp3`, a przyciski pojawią się same (fragment piosenki ustawiasz polami `start`/`dur` w sekundach).
+
+**⚙️ Menu** (każdy telefon) — zasady gry, pominięcie zawieszonego prowadzącego (przerywa rundę bez zdradzania hasła), zakończenie gry, nowa gra od zera, opuszczenie gry. Nikt nie może usunąć innego gracza.
+
+**Test na jednym komputerze** — w trybie `npm run dev` otwórz kilka kart `/play?as=a`, `/play?as=b`… — każda karta to osobny gracz.
 
 ## Uruchomienie lokalne
 
@@ -85,7 +89,7 @@ src/
     hooks.js        # animacje, tożsamość gracza
     sync/           # adaptery real-time: firebase / local
   components/       # Board (plansza), Keyboard, wspólne drobiazgi
-  views/            # Home, Admin, Player, TV
+  views/            # Home, Player (wszyscy na telefonach), TV
 ```
 
 ## Punktacja

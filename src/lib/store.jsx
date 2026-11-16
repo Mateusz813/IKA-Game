@@ -9,30 +9,49 @@ import {
 import { sync } from './sync/index.js'
 import { cleanPhrase, countLetter, phraseLetters } from './alphabet.js'
 
+// Przebieg gry:
+//   lobby    — poczekalnia: dołączanie, ustawienia „ile gramy”, ▶ Zaczynamy
+//   entering — hostId wymyśla hasło (tylko on widzi formularz)
+//   playing  — runda: hostId wyznacza 🎤, gracze klikają litery / 🎯 zgadują
+//   finished — hasło odgadnięte; hostId to JUŻ NASTĘPNA osoba z kolejki,
+//              która wpisuje kolejne hasło, a TV świętuje zwycięzcę
+//   over     — podium; „Zagraj jeszcze raz” wraca do lobby
+export const DEFAULT_SETTINGS = { mode: 'rounds', rounds: 1, target: 300 }
+
+const STATUSES = ['lobby', 'entering', 'playing', 'finished', 'over']
+
 const EMPTY = {
-  status: 'idle', // idle | playing | finished
+  status: 'lobby',
+  settings: DEFAULT_SETTINGS,
   phrase: '',
   category: '',
   revealed: {}, // litera -> true
-  used: {}, // litera -> 'hit' | 'miss'
-  players: {}, // id -> { name, score, joinedAt, online }
+  used: {}, // litera -> { r: 'hit'|'miss', by }
+  players: {}, // id -> { name, score, joinedAt, online, photo, hosted, solveBlock }
+  hostId: null,
   activePlayerId: null,
   winnerId: null,
-  hostId: null, // null = prowadzi gospodarz (urządzenie /admin), inaczej id gracza
-  handover: null, // { toId, ts } — oczekująca propozycja przejęcia prowadzenia
-  meme: null, // { id, ts } — soundboard prowadzącego, dźwięk gra na TV
-  lastAction: null, // { type, letter, count, playerId, ts }
+  lastAction: null, // { type, letter, count, playerId, guess, ts }
   round: 0,
+  meme: null, // { id, by, ts } — soundboard, dźwięk gra na TV
+  tvAudio: null, // { state: on|locked|muted|off }
 }
 
 // RTDB usuwa puste obiekty i nulle — uzupełniamy brakujące pola.
-const normalize = (v) => ({
-  ...EMPTY,
-  ...(v || {}),
-  revealed: { ...(v?.revealed || {}) },
-  used: { ...(v?.used || {}) },
-  players: { ...(v?.players || {}) },
-})
+function normalize(v) {
+  const s = {
+    ...EMPTY,
+    ...(v || {}),
+    settings: { ...DEFAULT_SETTINGS, ...(v?.settings || {}) },
+    revealed: { ...(v?.revealed || {}) },
+    used: { ...(v?.used || {}) },
+    players: { ...(v?.players || {}) },
+  }
+  // stany z poprzednich wersji gry
+  if (s.status === 'idle') s.status = s.hostId ? 'entering' : 'lobby'
+  if (!STATUSES.includes(s.status)) s.status = 'lobby'
+  return s
+}
 
 const Ctx = createContext(null)
 
@@ -67,54 +86,172 @@ export const useGame = () => useContext(Ctx)
 
 const now = () => sync.now()
 
+// ——— pomocnicze ———
+
+export const isOnline = (p) => p?.online !== false
+
+// Kolejka prowadzących: najpierw ci, którzy prowadzili najmniej razy,
+// przy remisie — kolejność dołączenia. Osoby offline pomijamy.
+export function hostQueue(players, excludeId = null) {
+  const list = Object.entries(players)
+    .map(([id, p]) => ({ id, ...p }))
+    .filter((p) => p.id !== excludeId)
+  const online = list.filter(isOnline)
+  return (online.length ? online : list).sort(
+    (a, b) => (a.hosted || 0) - (b.hosted || 0) || (a.joinedAt || 0) - (b.joinedAt || 0)
+  )
+}
+
+const nextHost = (players, excludeId) => hostQueue(players, excludeId)[0]?.id || excludeId
+
+// Czy po tej rundzie kończymy grę
+function gameIsOver(settings, players) {
+  const ps = Object.values(players)
+  if (!ps.length) return false
+  if (settings.mode === 'points')
+    return ps.some((p) => (p.score || 0) >= settings.target)
+  const online = ps.filter(isOnline)
+  return (online.length ? online : ps).every((p) => (p.hosted || 0) >= settings.rounds)
+}
+
+// „Hasło 3 z 8” albo „Gramy do 300 pkt”
+export function roundLabel(s) {
+  const n = Math.max(1, Object.values(s.players).filter(isOnline).length)
+  const current = s.status === 'playing' ? s.round : s.round + 1
+  if (s.settings.mode === 'points') return `Gramy do ${s.settings.target} pkt`
+  return `Hasło ${Math.min(current, s.settings.rounds * n)} z ${s.settings.rounds * n}`
+}
+
+export const settingsLabel = (st) =>
+  st.mode === 'points'
+    ? `do ${st.target} pkt`
+    : st.rounds === 1
+      ? 'każdy wymyśla 1 hasło'
+      : `każdy wymyśla ${st.rounds} hasła`
+
+// porównanie hasła bez polskich znaków, spacji i interpunkcji
+export const normPhrase = (t) =>
+  (t || '')
+    .toLocaleUpperCase('pl-PL')
+    .replace(/Ł/g, 'L')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9]/g, '')
+
+const clonePlayers = (players) =>
+  Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { ...p }]))
+
+// pola czyszczone przy każdej nowej rundzie/powrocie do lobby
+const ROUND_RESET = {
+  phrase: '',
+  category: '',
+  revealed: null,
+  used: null,
+  activePlayerId: null,
+  winnerId: null,
+}
+
+// Koniec rundy (zgadnięte hasło / wszystkie litery). players — już z
+// doliczonymi punktami za ostatnią literę.
+function finishRound(s, players, winnerId, type, u = {}) {
+  u.activePlayerId = null
+  u.winnerId = winnerId || null
+  phraseLetters(s.phrase).forEach((L) => (u['revealed/' + L] = true))
+  if (winnerId && players[winnerId]) {
+    players[winnerId].score = (players[winnerId].score || 0) + 100
+    u['players/' + winnerId + '/score'] = players[winnerId].score
+  }
+  Object.keys(players).forEach((id) => (u['players/' + id + '/solveBlock'] = null))
+  if (gameIsOver(s.settings, players)) {
+    u.status = 'over'
+    u.hostId = null
+  } else {
+    u.status = 'finished'
+    u.hostId = nextHost(players, s.hostId)
+  }
+  u.lastAction = { type, playerId: winnerId || null, ts: now() }
+  return u
+}
+
 function makeActions(get) {
   return {
-    startGame(rawPhrase, rawCategory) {
-      const phrase = cleanPhrase(rawPhrase)
-      if (!phrase) return
-      sync.update({
-        phrase,
-        category: (rawCategory || '').trim(),
-        status: 'playing',
-        revealed: null,
-        used: null,
-        activePlayerId: null,
-        winnerId: null,
-        lastAction: { type: 'start', ts: now() },
-        round: (get().round || 0) + 1,
-      })
+    // ——— lobby ———
+    setSettings(settings) {
+      if (get().status !== 'lobby') return
+      sync.update({ settings: { ...DEFAULT_SETTINGS, ...settings } })
     },
 
-    // playerId=null oznacza ruch prowadzącego (punkty idą do aktywnego gracza, jeśli jest)
-    guessLetter(letter, playerId = null) {
+    // kto kliknie ▶ Zaczynamy, ten wymyśla pierwsze hasło
+    startGame(playerId) {
       const s = get()
-      if (s.status !== 'playing' || s.used[letter]) return
-      if (playerId && (s.activePlayerId !== playerId || s.hostId === playerId)) return
-      const credit = playerId || s.activePlayerId
-      const count = countLetter(s.phrase, letter)
-      const hit = count > 0
+      if (s.status !== 'lobby' || !s.players[playerId]) return
       const u = {
-        // zapisujemy też KTO kliknął — klawiatura koloruje moje/cudze inaczej
-        ['used/' + letter]: { r: hit ? 'hit' : 'miss', by: credit || null },
-        activePlayerId: null,
-        lastAction: {
-          type: hit ? 'hit' : 'miss',
-          letter,
-          count,
-          playerId: credit || null,
-          ts: now(),
-        },
+        ...ROUND_RESET,
+        status: 'entering',
+        hostId: playerId,
+        round: 0,
+        lastAction: { type: 'host', playerId, ts: now() },
       }
-      if (hit) u['revealed/' + letter] = true
-      if (hit && credit && s.players[credit])
-        u['players/' + credit + '/score'] =
-          (s.players[credit].score || 0) + count * 10
+      Object.keys(s.players).forEach((id) => {
+        u['players/' + id + '/score'] = 0
+        u['players/' + id + '/hosted'] = 0
+        u['players/' + id + '/solveBlock'] = null
+      })
       sync.update(u)
     },
 
+    // ——— prowadzący wpisuje hasło ———
+    submitPhrase(playerId, rawPhrase, rawCategory) {
+      const s = get()
+      if (s.hostId !== playerId || !['entering', 'finished'].includes(s.status)) return
+      const phrase = cleanPhrase(rawPhrase)
+      if (!phrase) return
+      sync.update({
+        ...ROUND_RESET,
+        phrase,
+        category: (rawCategory || '').trim(),
+        status: 'playing',
+        round: (s.round || 0) + 1,
+        ['players/' + playerId + '/hosted']: (s.players[playerId]?.hosted || 0) + 1,
+        lastAction: { type: 'start', playerId, ts: now() },
+      })
+    },
+
+    // Pałeczka do następnej osoby z kolejki. Wpisujący: „pomiń mnie”.
+    // Ktokolwiek z ⚙️: prowadzący się zawiesił. W trakcie rundy przerywa ją
+    // BEZ odsłaniania hasła (czyścimy je, żeby nigdzie nie wyciekło).
+    passHost() {
+      const s = get()
+      if (!['entering', 'finished', 'playing'].includes(s.status) || !s.hostId) return
+      const players = clonePlayers(s.players)
+      const u = { activePlayerId: null }
+      if (s.status === 'playing') Object.assign(u, ROUND_RESET)
+      else if (players[s.hostId]) {
+        // pominięcie liczy się jak wykorzystana kolejka
+        players[s.hostId].hosted = (players[s.hostId].hosted || 0) + 1
+        u['players/' + s.hostId + '/hosted'] = players[s.hostId].hosted
+      }
+      if (gameIsOver(s.settings, players)) {
+        Object.assign(u, ROUND_RESET, {
+          status: 'over',
+          hostId: null,
+          lastAction: { type: 'gameover', ts: now() },
+        })
+      } else {
+        const next = nextHost(players, s.hostId)
+        Object.assign(u, {
+          status: 'entering',
+          hostId: next,
+          lastAction: { type: 'host', playerId: next, ts: now() },
+        })
+      }
+      sync.update(u)
+    },
+
+    // ——— runda ———
     grantTurn(id) {
       const s = get()
-      if (s.status !== 'playing' || id === s.hostId) return
+      if (s.status !== 'playing' || id === s.hostId || !s.players[id]) return
       sync.update({
         activePlayerId: id,
         lastAction: { type: 'turn', playerId: id, ts: now() },
@@ -125,201 +262,118 @@ function makeActions(get) {
       sync.update({ activePlayerId: null })
     },
 
+    // literę klika wyłącznie gracz z 🎤
+    guessLetter(letter, playerId) {
+      const s = get()
+      if (s.status !== 'playing' || s.used[letter]) return
+      if (!playerId || s.activePlayerId !== playerId || s.hostId === playerId) return
+      const count = countLetter(s.phrase, letter)
+      const hit = count > 0
+      const players = clonePlayers(s.players)
+      let u = {
+        ['used/' + letter]: { r: hit ? 'hit' : 'miss', by: playerId },
+        activePlayerId: null,
+        lastAction: { type: hit ? 'hit' : 'miss', letter, count, playerId, ts: now() },
+      }
+      if (hit) {
+        u['revealed/' + letter] = true
+        players[playerId].score = (players[playerId].score || 0) + count * 10
+        u['players/' + playerId + '/score'] = players[playerId].score
+        const allShown = phraseLetters(s.phrase).every((L) => L === letter || s.revealed[L])
+        if (allShown) {
+          // ostatnia litera — zapamiętaj ją, potem zamknij rundę
+          const letterAction = u.lastAction
+          u = finishRound(s, players, null, 'allRevealed', u)
+          u.lastAction = { ...u.lastAction, letter: letterAction.letter, count, by: playerId }
+        }
+      }
+      sync.update(u)
+    },
+
+    // 🎯 gracz wpisuje całe hasło. Zwraca 'ok' | 'wrong' | 'blocked'.
+    solve(playerId, guess) {
+      const s = get()
+      const me = s.players[playerId]
+      if (s.status !== 'playing' || !me || playerId === s.hostId) return 'blocked'
+      const revealedCount = Object.keys(s.revealed).length
+      if (me.solveBlock != null && me.solveBlock === revealedCount) return 'blocked'
+      if (normPhrase(guess) && normPhrase(guess) === normPhrase(s.phrase)) {
+        sync.update(finishRound(s, clonePlayers(s.players), playerId, 'win'))
+        return 'ok'
+      }
+      sync.update({
+        ['players/' + playerId + '/solveBlock']: revealedCount,
+        ...(s.activePlayerId === playerId ? { activePlayerId: null } : {}),
+        lastAction: {
+          type: 'wrongSolve',
+          playerId,
+          guess: cleanPhrase(guess).slice(0, 60),
+          ts: now(),
+        },
+      })
+      return 'wrong'
+    },
+
+    // prowadzący: ktoś powiedział całe hasło na głos
     awardPhrase(id) {
       const s = get()
       if (!s.players[id] || s.status !== 'playing' || id === s.hostId) return
-      const u = {
-        status: 'finished',
-        winnerId: id,
-        activePlayerId: null,
-        ['players/' + id + '/score']: (s.players[id].score || 0) + 100,
-        lastAction: { type: 'win', playerId: id, ts: now() },
-      }
-      phraseLetters(s.phrase).forEach((L) => (u['revealed/' + L] = true))
-      sync.update(u)
+      sync.update(finishRound(s, clonePlayers(s.players), id, 'win'))
     },
 
-    revealAll() {
+    // ——— koniec gry ———
+    endNow() {
       const s = get()
-      const u = {
-        status: 'finished',
-        activePlayerId: null,
-        lastAction: { type: 'end', ts: now() },
-      }
-      phraseLetters(s.phrase).forEach((L) => (u['revealed/' + L] = true))
-      sync.update(u)
-    },
-
-    newRound() {
+      if (s.status === 'lobby' || s.status === 'over') return
       sync.update({
-        status: 'idle',
-        phrase: '',
-        category: '',
-        revealed: null,
-        used: null,
-        activePlayerId: null,
-        winnerId: null,
-        handover: null,
-        lastAction: { type: 'reset', ts: now() },
-      })
-    },
-
-    // ——— przekazywanie prowadzenia ———
-    offerHost(toId) {
-      if (!get().players[toId]) return
-      sync.update({ handover: { toId, ts: now() } })
-    },
-
-    cancelOffer() {
-      sync.update({ handover: null })
-    },
-
-    acceptHost(playerId) {
-      const s = get()
-      if (s.handover?.toId !== playerId) return
-      const base = {
-        hostId: playerId,
-        handover: null,
-        ['players/' + playerId + '/hostedAt']: now(),
-        lastAction: { type: 'host', playerId, ts: now() },
-      }
-      if (s.status === 'playing') {
-        // przejęcie w trakcie rundy — plansza zostaje, nowy prowadzący dokańcza
-        if (s.activePlayerId === playerId) base.activePlayerId = null
-        sync.update(base)
-      } else {
-        sync.update({
-          ...base,
-          status: 'idle',
-          phrase: '',
-          category: '',
-          revealed: null,
-          used: null,
-          activePlayerId: null,
-          winnerId: null,
-        })
-      }
-    },
-
-    // gracz sam przejmuje pilota, gdy nikt nie prowadzi (start gry / po rundzie)
-    claimHost(playerId) {
-      const s = get()
-      if (!s.players[playerId] || s.hostId || s.status === 'playing') return
-      sync.update({
-        hostId: playerId,
-        handover: null,
-        status: 'idle',
-        phrase: '',
-        category: '',
-        revealed: null,
-        used: null,
-        activePlayerId: null,
-        winnerId: null,
-        ['players/' + playerId + '/hostedAt']: now(),
-        lastAction: { type: 'host', playerId, ts: now() },
-      })
-    },
-
-    declineHost(playerId) {
-      const s = get()
-      if (s.handover?.toId !== playerId) return
-      sync.update({
-        handover: null,
-        lastAction: { type: 'hostDecline', playerId, ts: now() },
-      })
-    },
-
-    // gospodarz (urządzenie /admin) odbiera pilota — gra toczy się dalej
-    reclaimHost() {
-      sync.update({
-        hostId: null,
-        handover: null,
-        lastAction: { type: 'host', playerId: null, ts: now() },
-      })
-    },
-
-    // soundboard prowadzącego — memiczny dźwięk odtwarzany na TV,
-    // targetId = gracz, przy którym kliknięto ikonkę (pokazujemy go na TV)
-    playMeme(id, targetId = null) {
-      sync.update({ meme: { id, targetId, ts: now() } })
-    },
-
-    // TV raportuje stan dźwięku: on | locked | muted (off ustawia serwer)
-    setTvAudio(state) {
-      if (get().tvAudio?.state === state) return
-      sync.update({ tvAudio: { state, ts: now() } })
-    },
-
-    // ——— koniec gry: podium na TV ———
-    endGame() {
-      const s = get()
-      const u = {
+        ...ROUND_RESET,
         status: 'over',
-        activePlayerId: null,
-        handover: null,
         hostId: null,
         lastAction: { type: 'gameover', ts: now() },
-      }
-      if (s.phrase) phraseLetters(s.phrase).forEach((L) => (u['revealed/' + L] = true))
-      sync.update(u)
-    },
-
-    // pełny reset do samego początku — czyści też graczy
-    resetAll() {
-      sync.update({
-        status: 'idle',
-        phrase: '',
-        category: '',
-        revealed: null,
-        used: null,
-        players: null,
-        activePlayerId: null,
-        winnerId: null,
-        hostId: null,
-        handover: null,
-        round: 0,
-        lastAction: { type: 'reset', ts: now() },
       })
     },
 
-    // nowa gra od zera (punkty wyzerowane, gracze zostają)
+    // wszyscy zostają, punkty od zera, wracamy do poczekalni
     newGame() {
       const u = {
-        status: 'idle',
-        phrase: '',
-        category: '',
-        revealed: null,
-        used: null,
-        activePlayerId: null,
-        winnerId: null,
-        handover: null,
+        ...ROUND_RESET,
+        status: 'lobby',
+        hostId: null,
         round: 0,
-        lastAction: { type: 'reset', ts: now() },
+        lastAction: { type: 'lobby', ts: now() },
       }
-      Object.keys(get().players).forEach((id) => (u['players/' + id + '/score'] = 0))
-      sync.update(u)
-    },
-
-    resetScores() {
-      const u = {}
-      Object.keys(get().players).forEach(
-        (id) => (u['players/' + id + '/score'] = 0)
-      )
-      sync.update(u)
-    },
-
-    joinPlayer(id, name, photo = null) {
-      const existing = get().players[id]
-      const keptPhoto = photo || existing?.photo
-      sync.update({
-        ['players/' + id]: {
-          name,
-          score: existing?.score || 0,
-          joinedAt: existing?.joinedAt || now(),
-          online: true,
-          ...(keptPhoto ? { photo: keptPhoto } : {}),
-        },
+      Object.keys(get().players).forEach((id) => {
+        u['players/' + id + '/score'] = 0
+        u['players/' + id + '/hosted'] = 0
+        u['players/' + id + '/solveBlock'] = null
       })
+      sync.update(u)
+    },
+
+    // ——— gracze ———
+    joinPlayer(id, name, photo = null) {
+      const s = get()
+      const existing = s.players[id]
+      const keptPhoto = photo || existing?.photo
+      const u = {
+        ['players/' + id + '/name']: name,
+        ['players/' + id + '/online']: true,
+        ['players/' + id + '/joinedAt']: existing?.joinedAt || now(),
+        ['players/' + id + '/score']: existing?.score || 0,
+        ['players/' + id + '/hosted']: existing?.hosted || 0,
+        ...(keptPhoto ? { ['players/' + id + '/photo']: keptPhoto } : {}),
+      }
+      // Nowa osoba, a w grze nikogo — to stan po poprzedniej imprezie,
+      // zaczynamy od poczekalni (odświeżenie strony gracza tego nie robi)
+      const others = Object.keys(s.players).filter((pid) => pid !== id)
+      if (!existing && !others.length && s.status !== 'lobby')
+        Object.assign(u, ROUND_RESET, {
+          status: 'lobby',
+          hostId: null,
+          round: 0,
+          lastAction: { type: 'lobby', ts: now() },
+        })
+      sync.update(u)
       sync.presence?.(id)
     },
 
@@ -327,13 +381,39 @@ function makeActions(get) {
       sync.update({ ['players/' + id + '/photo']: photo || null })
     },
 
-    removePlayer(id) {
+    // gracz sam opuszcza grę (nikt nie usuwa innych)
+    leave(id) {
       const s = get()
+      const players = clonePlayers(s.players)
+      delete players[id]
       const u = { ['players/' + id]: null }
-      if (s.activePlayerId === id) u.activePlayerId = null
-      if (s.hostId === id) u.hostId = null
-      if (s.handover?.toId === id) u.handover = null
+      if (!Object.keys(players).length) {
+        Object.assign(u, ROUND_RESET, {
+          status: 'lobby',
+          hostId: null,
+          round: 0,
+          lastAction: { type: 'lobby', ts: now() },
+        })
+      } else {
+        if (s.activePlayerId === id) u.activePlayerId = null
+        if (s.hostId === id && s.status !== 'lobby' && s.status !== 'over') {
+          if (s.status === 'playing') Object.assign(u, ROUND_RESET, { status: 'entering' })
+          u.hostId = nextHost(players, null)
+          u.lastAction = { type: 'host', playerId: u.hostId, ts: now() }
+        }
+      }
       sync.update(u)
+    },
+
+    // ——— dźwięki ———
+    playMeme(id, by = null) {
+      sync.update({ meme: { id, by, ts: now() } })
+    },
+
+    // TV raportuje stan dźwięku: on | locked | muted (off ustawia serwer)
+    setTvAudio(state) {
+      if (get().tvAudio?.state === state) return
+      sync.update({ tvAudio: { state, ts: now() } })
     },
   }
 }
@@ -345,5 +425,5 @@ export const usedInfo = (u) =>
 export function sortedPlayers(players) {
   return Object.entries(players)
     .map(([id, p]) => ({ id, ...p }))
-    .sort((a, b) => (b.score || 0) - (a.score || 0) || a.joinedAt - b.joinedAt)
+    .sort((a, b) => (b.score || 0) - (a.score || 0) || (a.joinedAt || 0) - (b.joinedAt || 0))
 }

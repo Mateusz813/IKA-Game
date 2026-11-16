@@ -1,94 +1,88 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { useGame, sortedPlayers } from '../lib/store.jsx'
-import {
-  useFreshAction,
-  getPlayerId,
-  getSavedName,
-  saveName,
-  clearSavedName,
-} from '../lib/hooks.js'
+import { useGame, sortedPlayers, hostQueue, roundLabel, settingsLabel } from '../lib/store.jsx'
+import { useFreshAction, getPlayerId, getSavedName, saveName } from '../lib/hooks.js'
 import Board from '../components/Board.jsx'
 import Keyboard from '../components/Keyboard.jsx'
-import HostConsole from '../components/HostConsole.jsx'
-import {
-  Logo,
-  Avatar,
-  ConfirmButton,
-  ModeBadge,
-  Spinner,
-  fileToAvatar,
-} from '../components/common.jsx'
+import PhoneHeader, { HowToPlay } from '../components/PhoneHeader.jsx'
+import { PhraseForm, HostPlaying, TvAudioHint } from '../components/HostConsole.jsx'
+import { Logo, Avatar, ConfirmButton, ModeBadge, Spinner, fileToAvatar } from '../components/common.jsx'
 
 export default function Player() {
   const { state, ready, actions } = useGame()
   const myId = getPlayerId()
   const autoJoined = useRef(false)
-  const [params, setParams] = useSearchParams()
-  const wantHost = params.get('host') === '1'
-
-  // wejście z kafelka „Admin”: po dołączeniu od razu przejmij pilota
-  // (jeśli wolny — claimHost sam pilnuje, żeby nikomu go nie zabrać)
-  useEffect(() => {
-    if (!ready || !wantHost || !state.players[myId]) return
-    actions.claimHost(myId)
-    setParams({}, { replace: true })
-  }, [ready, wantHost, !!state.players[myId]]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Automatyczny powrót do gry po odświeżeniu (raz na wejście)
   useEffect(() => {
     if (!ready || autoJoined.current) return
+    autoJoined.current = true
     const saved = getSavedName()
-    if (saved && !state.players[myId]) {
-      autoJoined.current = true
-      actions.joinPlayer(myId, saved)
-    }
-  }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Utrzymuj status online (Firebase presence)
-  useEffect(() => {
-    if (ready && state.players[myId]) actions.joinPlayer(myId, state.players[myId].name)
+    if (saved) actions.joinPlayer(myId, state.players[myId]?.name || saved)
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return <Spinner />
   const me = state.players[myId]
-
   if (!me)
     return (
       <JoinScreen
-        asHost={wantHost}
+        s={state}
         onJoin={(name, photo) => {
           saveName(name)
           actions.joinPlayer(myId, name, photo)
         }}
       />
     )
+  return <PhoneShell s={state} me={me} myId={myId} actions={actions} />
+}
 
-  const offered = state.handover?.toId === myId
+function PhoneShell({ s, me, myId, actions }) {
+  const isHost = s.hostId === myId
+  let body
+  if (s.status === 'lobby') body = <Lobby s={s} myId={myId} actions={actions} />
+  else if (s.status === 'over') body = <OverScreen s={s} myId={myId} actions={actions} />
+  else if (s.status === 'playing')
+    body = isHost ? (
+      <HostPlaying s={s} myId={myId} actions={actions} />
+    ) : (
+      <PlayerPlaying s={s} me={me} myId={myId} actions={actions} />
+    )
+  else
+    body = (
+      <>
+        {s.status === 'finished' && <RoundResult s={s} myId={myId} />}
+        {isHost ? (
+          <>
+            <div className="status-strip status-strip--turn">
+              🎩 Twoja kolej — wymyśl hasło dla reszty!
+            </div>
+            <PhraseForm s={s} myId={myId} actions={actions} />
+          </>
+        ) : (
+          <WaitingForPhrase s={s} myId={myId} />
+        )}
+      </>
+    )
+
   return (
-    <>
-      {offered && (
-        <HandoverModal actions={actions} myId={myId} playing={state.status === 'playing'} />
-      )}
-      {state.hostId === myId ? (
-        <HostMode s={state} me={me} myId={myId} actions={actions} />
-      ) : (
-        <GameScreen s={state} actions={actions} myId={myId} me={me} />
-      )}
-    </>
+    <div className="page player">
+      <PhoneHeader s={s} me={me} myId={myId} actions={actions} />
+      {body}
+    </div>
   )
 }
 
-function JoinScreen({ onJoin, asHost = false }) {
+// ——— dołączanie ———
+function JoinScreen({ s, onJoin }) {
   const [name, setName] = useState(getSavedName())
   const [photo, setPhoto] = useState(null)
   const fileRef = useRef(null)
   const ok = name.trim().length >= 2
+  const count = Object.keys(s.players).length
   return (
     <div className="home">
       <Logo />
       <p className="home-sub">
-        {asHost ? 'Dołącz i podawaj pierwsze hasło 🎩' : 'Dołącz do gry 🎮'}
+        {count ? `Dołącz do gry — w środku już ${count} ${count === 1 ? 'osoba' : 'osoby'} 🎮` : 'Dołącz do gry 🎮'}
       </p>
       <form
         className="join-form"
@@ -97,11 +91,7 @@ function JoinScreen({ onJoin, asHost = false }) {
           if (ok) onJoin(name.trim().slice(0, 16), photo)
         }}
       >
-        <button
-          type="button"
-          className="avatar-pick"
-          onClick={() => fileRef.current?.click()}
-        >
+        <button type="button" className="avatar-pick" onClick={() => fileRef.current?.click()}>
           {photo ? (
             <img src={photo} alt="" className="avatar" style={{ width: 96, height: 96 }} />
           ) : (
@@ -143,8 +133,7 @@ function JoinScreen({ onJoin, asHost = false }) {
 // Podpowiedź instalacji PWA — znika, gdy apka już działa z ekranu głównego
 function InstallHint() {
   const standalone =
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    window.navigator.standalone
+    window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone
   if (standalone) return null
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent)
   return (
@@ -156,84 +145,135 @@ function InstallHint() {
         </>
       ) : (
         <>
-          📲 Zainstaluj jak apkę: menu przeglądarki <b>⋮</b> →{' '}
-          <b>„Dodaj do ekranu głównego”</b>
+          📲 Zainstaluj jak apkę: menu przeglądarki <b>⋮</b> → <b>„Dodaj do ekranu głównego”</b>
         </>
       )}
     </p>
   )
 }
 
-// Propozycja przejęcia prowadzenia — pełnoekranowy modal
-function HandoverModal({ actions, myId, playing = false }) {
-  useEffect(() => {
-    try {
-      navigator.vibrate?.([150, 80, 150])
-    } catch { /* ignore */ }
-  }, [])
+// ——— poczekalnia ———
+const OPTIONS = [
+  { key: 'r1', label: 'Każdy wymyśla 1 hasło', hint: 'krótko', settings: { mode: 'rounds', rounds: 1 } },
+  { key: 'r2', label: 'Każdy wymyśla 2 hasła', hint: 'dłużej', settings: { mode: 'rounds', rounds: 2 } },
+  { key: 'p300', label: 'Gramy do 300 pkt', hint: 'kto pierwszy', settings: { mode: 'points', target: 300 } },
+  { key: 'p500', label: 'Gramy do 500 pkt', hint: 'długa gra', settings: { mode: 'points', target: 500 } },
+]
+const optionKey = (st) => (st.mode === 'points' ? `p${st.target}` : `r${st.rounds}`)
+
+function Lobby({ s, myId, actions }) {
+  const players = sortedPlayers(s.players).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+  const current = optionKey(s.settings)
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-emoji">🎩</div>
-        <h2>Przejmiesz prowadzenie?</h2>
-        <p>
-          {playing
-            ? 'Dokończysz prowadzenie tego hasła — zobaczysz je i będziesz wyznaczać, kto odpowiada. Od teraz nie zgadujesz. Punkty wszystkich zostają.'
-            : 'Wpiszesz następne hasło i będziesz wybierać, kto odpowiada. W swojej rundzie nie zgadujesz (znasz hasło 😉). Punkty wszystkich zostają.'}
-        </p>
-        <button className="btn btn--primary btn--big" onClick={() => actions.acceptHost(myId)}>
-          ✅ Jasne, prowadzę!
-        </button>
-        <button className="btn btn--ghost" onClick={() => actions.declineHost(myId)}>
-          Nie, dzięki
-        </button>
+    <>
+      <div className="status-strip status-strip--turn">
+        👋 Jesteś w grze! Czekamy, aż dołączy cała ekipa.
       </div>
-    </div>
+
+      <section className="panel">
+        <h2>👥 W grze ({players.length})</h2>
+        <div className="lobby-players">
+          {players.map((p) => (
+            <span key={p.id} className={`lobby-player ${p.id === myId ? 'lobby-player--me' : ''}`}>
+              <Avatar player={p} size={26} /> {p.name}
+            </span>
+          ))}
+        </div>
+        <p className="hint">Reszta skanuje kod QR z telewizora.</p>
+      </section>
+
+      <section className="panel">
+        <h2>⏱ Ile gramy?</h2>
+        <div className="opt-grid">
+          {OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              className={`opt ${current === o.key ? 'opt--on' : ''}`}
+              onClick={() => actions.setSettings(o.settings)}
+            >
+              <span className="opt-label">{o.label}</span>
+              <span className="opt-hint">{o.hint}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <HowToPlay />
+
+      <section className="panel">
+        <TvAudioHint state={s.tvAudio?.state} />
+        <ConfirmButton
+          className="btn btn--green btn--big btn--block"
+          label="▶ Zaczynamy! (wymyślę pierwsze hasło)"
+          confirmLabel={`Start! Gramy: ${settingsLabel(s.settings)} ▶`}
+          onConfirm={() => actions.startGame(myId)}
+        />
+        {players.length < 2 && (
+          <p className="hint" style={{ textAlign: 'center' }}>
+            Najlepiej grać w 3+ osoby — ale możesz wystartować choćby teraz.
+          </p>
+        )}
+      </section>
+    </>
   )
 }
 
-// Gracz z pilotem — pełny panel prowadzącego
-function HostMode({ s, me, myId, actions }) {
+// ——— czekanie na hasło ———
+function WaitingForPhrase({ s, myId }) {
+  const host = s.players[s.hostId]
+  const queue = hostQueue(s.players, s.hostId).slice(0, 4)
   return (
-    <div className="page admin">
-      <header className="page-header">
-        <Link to="/" className="back-link">‹</Link>
-        <Logo small />
-        <span className="player-me">
-          <Avatar player={me} size={28} /> 🎩 {me.name} ·{' '}
-          <b key={me.score} className="score-bump">{me.score || 0} pkt</b>
-        </span>
-        <ModeBadge />
-      </header>
-      {s.status === 'idle' && (
-        <div className="status-strip status-strip--turn">
-          🎩 Prowadzisz! Wpisz hasło i wybieraj, kto odpowiada.
-        </div>
+    <>
+      <section className="panel waiting">
+        <Avatar player={host} size={64} />
+        <h2>
+          🎩 {host?.name || '…'} wymyśla hasło{s.status === 'finished' ? ' na następną rundę' : ''}…
+        </h2>
+        <p className="hint">Za chwilę na telewizorze pojawi się plansza. Przygotuj się!</p>
+        {queue.length > 0 && (
+          <p className="queue">
+            Potem prowadzą: {queue.map((p) => (p.id === myId ? 'TY' : p.name)).join(' → ')}
+          </p>
+        )}
+      </section>
+      <Leaderboard s={s} myId={myId} />
+    </>
+  )
+}
+
+// Wynik zakończonej rundy (pokazywany nad formularzem / czekaniem)
+function RoundResult({ s, myId }) {
+  const winner = s.winnerId ? s.players[s.winnerId] : null
+  const won = s.winnerId === myId
+  return (
+    <div className={`round-result ${won ? 'round-result--me' : ''}`}>
+      {winner ? (
+        won ? (
+          <>🏆 Zgadłeś(-aś) hasło! <b>+100 pkt</b></>
+        ) : (
+          <>🏆 Hasło zgadł(a) <b>{winner.name}</b></>
+        )
+      ) : (
+        <>🎉 Wszystkie litery odsłonięte!</>
       )}
-      <HostConsole hostId={myId} />
-      {s.status !== 'playing' && (
-        <div className="claim-host">
-          <ConfirmButton
-            className="btn btn--ghost btn--small"
-            label="🏠 Oddaję pilota"
-            confirmLabel="Oddać prowadzenie?"
-            onConfirm={() => actions.reclaimHost()}
-          />
-        </div>
-      )}
+      <div className="round-result-phrase">„{s.phrase}”</div>
     </div>
   )
 }
 
-function GameScreen({ s, actions, myId, me }) {
-  const myTurn = s.status === 'playing' && s.activePlayerId === myId
+// ——— runda (zwykły gracz) ———
+function PlayerPlaying({ s, me, myId, actions }) {
+  const [solving, setSolving] = useState(false)
+  const myTurn = s.activePlayerId === myId
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
+  const host = s.players[s.hostId]
   const feedback = useFreshAction(s.lastAction, 2600)
   const myFeedback =
     feedback && feedback.playerId === myId && ['hit', 'miss'].includes(feedback.type)
       ? feedback
       : null
-  const fileRef = useRef(null)
+  const revealedCount = Object.keys(s.revealed).length
+  const blocked = me.solveBlock != null && me.solveBlock === revealedCount
 
   // Wibracja, gdy dostajesz turę
   useEffect(() => {
@@ -245,158 +285,158 @@ function GameScreen({ s, actions, myId, me }) {
   }, [myTurn])
 
   return (
-    <div className="page player">
-      <header className="page-header">
-        <Link to="/" className="back-link">‹</Link>
-        <Logo small />
-        <span className="player-me">
-          <button type="button" className="avatar-btn" onClick={() => fileRef.current?.click()} title="Zmień zdjęcie">
-            <Avatar player={me} size={30} />
-          </button>{' '}
-          {me.name} · <b key={me.score} className="score-bump">{me.score || 0} pkt</b>
-        </span>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            if (f) actions.setPhoto(myId, await fileToAvatar(f))
-            e.target.value = ''
-          }}
-        />
-        <ModeBadge />
-      </header>
-
-      {s.status === 'over' ? (
-        <PlayerOver s={s} myId={myId} actions={actions} />
+    <>
+      {myTurn ? (
+        <div className="status-strip status-strip--turn">🎤 TWOJA KOLEJ — kliknij literę!</div>
       ) : (
-        <>
-          <StatusStrip s={s} myTurn={myTurn} myId={myId} activeName={activeName} />
-
-          {!s.hostId && s.status !== 'playing' && (
-            <div className="claim-host">
-              <ConfirmButton
-                className="btn btn--primary"
-                label="🎩 Poprowadzę — wpiszę hasło"
-                confirmLabel="Przejąć pilota?"
-                onConfirm={() => actions.claimHost(myId)}
-              />
-            </div>
+        <div className="status-strip">
+          {activeName ? (
+            <>🎧 Literę wybiera: <b>{activeName}</b></>
+          ) : (
+            <>🎩 {host?.name || 'Prowadzący'} wybiera, kto zgaduje literę…</>
           )}
-
-          {s.category && s.status !== 'idle' && (
-            <div className="player-category">
-              <span className="chip">{s.category}</span>
-            </div>
-          )}
-
-          <Board
-            phrase={s.status === 'idle' ? '' : s.phrase}
-            revealed={s.revealed}
-            lastAction={s.lastAction}
-            size="mini"
-          />
-
-          <div className="player-kbd">
-            {myFeedback && (
-              <div
-                className={`guess-feedback ${
-                  myFeedback.type === 'hit' ? 'guess-feedback--hit' : 'guess-feedback--miss'
-                }`}
-              >
-                {myFeedback.type === 'hit'
-                  ? `🎉 ${myFeedback.letter} ×${myFeedback.count} · +${myFeedback.count * 10} pkt!`
-                  : `✗ Nie ma litery ${myFeedback.letter}`}
-              </div>
-            )}
-            <Keyboard
-              used={s.used}
-              disabled={!myTurn}
-              viewerId={myId}
-              onPick={(L) => actions.guessLetter(L, myId)}
-            />
-            <p className="kbd-legend">
-              <span className="leg leg--mine" /> Twoje trafienia
-              <span className="leg leg--other" /> trafienia innych
-              <span className="leg leg--miss" /> pudła
-            </p>
-          </div>
-
-          <Leaderboard s={s} myId={myId} />
-        </>
+        </div>
       )}
 
-      <footer className="player-footer">
-        <ConfirmButton
-          className="btn btn--ghost btn--small"
-          label="Opuść grę"
-          confirmLabel="Na pewno wyjść?"
-          onConfirm={() => {
-            clearSavedName()
-            actions.removePlayer(myId)
-          }}
-        />
-      </footer>
-    </div>
-  )
-}
-
-function PlayerOver({ s, myId, actions }) {
-  const players = sortedPlayers(s.players)
-  const myRank = players.findIndex((p) => p.id === myId) + 1
-  return (
-    <>
-      <div className="status-strip status-strip--win">
-        🏁 Koniec gry! {myRank === 1 ? 'Wygrywasz! 🏆' : `Twoje miejsce: ${myRank}.`}
+      <div className="player-category">
+        {s.category && <span className="chip">{s.category}</span>}
+        <span className="chip chip--muted">{roundLabel(s)}</span>
       </div>
+
+      <Board phrase={s.phrase} revealed={s.revealed} lastAction={s.lastAction} size="mini" />
+
+      <button
+        className="btn btn--gold btn--big btn--block solve-btn"
+        disabled={blocked}
+        onClick={() => setSolving(true)}
+      >
+        {blocked ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery' : '🎯 Znam hasło!'}
+      </button>
+
+      <div className="player-kbd">
+        {myFeedback && (
+          <div
+            className={`guess-feedback ${
+              myFeedback.type === 'hit' ? 'guess-feedback--hit' : 'guess-feedback--miss'
+            }`}
+          >
+            {myFeedback.type === 'hit'
+              ? `🎉 ${myFeedback.letter} ×${myFeedback.count} · +${myFeedback.count * 10} pkt!`
+              : `✗ Nie ma litery ${myFeedback.letter}`}
+          </div>
+        )}
+        <Keyboard
+          used={s.used}
+          disabled={!myTurn}
+          viewerId={myId}
+          onPick={(L) => actions.guessLetter(L, myId)}
+        />
+        <p className="kbd-legend">
+          <span className="leg leg--mine" /> Twoje
+          <span className="leg leg--other" /> innych
+          <span className="leg leg--miss" /> pudła
+        </p>
+      </div>
+
       <Leaderboard s={s} myId={myId} />
-      <p className="hint" style={{ textAlign: 'center' }}>
-        Podium jest na telewizorze.
-      </p>
-      {!s.hostId && (
-        <div className="claim-host">
-          <ConfirmButton
-            className="btn btn--primary"
-            label="🎩 Poprowadzę nowe hasło"
-            confirmLabel="Gramy dalej? (punkty zostają)"
-            onConfirm={() => actions.claimHost(myId)}
-          />
-        </div>
+
+      {solving && (
+        <SolveModal
+          onClose={() => setSolving(false)}
+          onSolve={(text) => actions.solve(myId, text)}
+        />
       )}
     </>
   )
 }
 
-function StatusStrip({ s, myTurn, myId, activeName }) {
-  if (s.status === 'idle')
-    return <div className="status-strip">⏳ Czekamy, aż prowadzący wpisze hasło…</div>
-  if (s.status === 'finished') {
-    const winner = s.winnerId ? s.players[s.winnerId] : null
-    if (s.winnerId === myId)
-      return <div className="status-strip status-strip--win">🏆 WYGRYWASZ! +100 pkt</div>
-    return (
-      <div className="status-strip">
-        {winner ? <>🏆 Hasło zgadł(a): <b>{winner.name}</b></> : '🎉 Koniec rundy!'}
-      </div>
-    )
-  }
-  if (myTurn)
-    return (
-      <div className="status-strip status-strip--turn">
-        🎤 TWOJA KOLEJ — wybierz literę!
-      </div>
-    )
+function SolveModal({ onSolve, onClose }) {
+  const [text, setText] = useState('')
+  const [result, setResult] = useState(null)
+  useEffect(() => {
+    if (!result) return
+    const t = setTimeout(onClose, result === 'ok' ? 900 : 1800)
+    return () => clearTimeout(t)
+  }, [result, onClose])
   return (
-    <div className="status-strip">
-      {activeName ? (
-        <>🎧 Odpowiada: <b>{activeName}</b></>
-      ) : (
-        '🔒 Czekaj, aż prowadzący da Ci turę'
-      )}
+    <div className="modal-backdrop" onClick={onClose}>
+      <form
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (text.trim() && !result) setResult(onSolve(text))
+        }}
+      >
+        <div className="modal-emoji">🎯</div>
+        <h2>Wpisz całe hasło</h2>
+        <p>Polskie znaki i wielkość liter nie mają znaczenia. Uwaga: przy pomyłce musisz poczekać na kolejną literę!</p>
+        <input
+          className="input input--phrase"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Twoja odpowiedź…"
+          autoFocus
+          autoComplete="off"
+          disabled={!!result}
+        />
+        {result === 'ok' && <div className="solve-result solve-result--ok">🏆 BRAWO! +100 pkt</div>}
+        {result === 'wrong' && <div className="solve-result solve-result--bad">❌ Niestety, to nie to!</div>}
+        {result === 'blocked' && <div className="solve-result solve-result--bad">🔒 Poczekaj na kolejną literę</div>}
+        {!result && (
+          <>
+            <button className="btn btn--gold btn--big" disabled={!text.trim()}>
+              Sprawdź!
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={onClose}>
+              Anuluj
+            </button>
+          </>
+        )}
+      </form>
     </div>
+  )
+}
+
+// ——— koniec gry ———
+function OverScreen({ s, myId, actions }) {
+  const players = sortedPlayers(s.players)
+  const myRank = players.findIndex((p) => p.id === myId) + 1
+  const champ = players[0]?.score > 0 ? players[0] : null
+  const me = s.players[myId]
+  // dołączył(a) już po zakończeniu poprzedniej gry
+  const latecomer = s.lastAction?.ts && (me?.joinedAt || 0) > s.lastAction.ts
+  return (
+    <>
+      {latecomer ? (
+        <div className="status-strip status-strip--turn">
+          👋 Poprzednia gra właśnie się skończyła — zacznijcie nową poniżej!
+        </div>
+      ) : (
+        <div className="status-strip status-strip--win">
+          🏁 Koniec gry!{' '}
+          {champ
+            ? champ.id === myId
+              ? 'WYGRYWASZ! 🏆'
+              : `Wygrywa ${champ.name} 🏆 · Ty: ${myRank}. miejsce`
+            : ''}
+        </div>
+      )}
+      {!latecomer && (
+        <p className="hint" style={{ textAlign: 'center' }}>Podium świeci się na telewizorze 📺</p>
+      )}
+      <Leaderboard s={s} myId={myId} />
+      <section className="panel">
+        <h2>Gramy jeszcze raz?</h2>
+        <p className="hint">Wszyscy wracają do poczekalni, punkty od zera.</p>
+        <ConfirmButton
+          className="btn btn--green btn--big btn--block"
+          label="🔄 Zagraj jeszcze raz"
+          confirmLabel="Tak, nowa gra! ▶"
+          onConfirm={() => actions.newGame()}
+        />
+      </section>
+    </>
   )
 }
 
@@ -411,12 +451,14 @@ function Leaderboard({ s, myId }) {
           key={p.id}
           className={`lb-row ${p.id === myId ? 'lb-row--me' : ''} ${
             s.activePlayerId === p.id ? 'lb-row--active' : ''
-          }`}
+          } ${p.online === false ? 'lb-row--off' : ''}`}
         >
           <span className="lb-rank">{medals[i] || `${i + 1}.`}</span>
           <Avatar player={p} size={26} />
           <span className="lb-name">
-            {p.id === s.hostId ? '🎩 ' : ''}{p.name}
+            {p.id === s.hostId && s.status !== 'lobby' && s.status !== 'over' ? '🎩 ' : ''}
+            {p.name}
+            {p.id === myId ? ' (Ty)' : ''}
           </span>
           <span className="lb-score">{p.score || 0}</span>
         </div>

@@ -648,30 +648,347 @@ textarea {
   padding: 11px 14px;
 }
 
-/* soundboard: ikonka 😭 przy graczu (konsola prowadzącego) */
-.cry-btn {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 211, 77, 0.45);
-  background: rgba(255, 211, 77, 0.12);
+/* ============ NAGŁÓWEK TELEFONU: ja + 🔊 + ⚙️ ============ */
+.phone-header { position: relative; z-index: 30; }
+
+.hdr-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hdr-me {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 0;
+  text-align: left;
+}
+
+.hdr-me-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.hdr-me-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hdr-me-text b { color: var(--gold); display: inline-block; }
+
+.hdr-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--panel2);
   font-size: 19px;
   line-height: 1;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.07s;
 }
 
-.cry-btn:active { transform: scale(0.85); }
-.cry-btn--sent { animation: cry-sent 0.6s; }
+.hdr-btn:active { transform: scale(0.9); }
+.hdr-btn--on { border-color: var(--gold); background: rgba(255, 211, 77, 0.18); }
 
-@keyframes cry-sent {
-  0% { transform: scale(1); }
-  35% { transform: scale(1.45) rotate(-12deg); background: rgba(255, 211, 77, 0.45); }
-  100% { transform: scale(1); }
+/* lista rozwijana dźwięków */
+.dd { position: relative; }
+
+.dd-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.dd-panel {
+  position: absolute;
+  right: -46px;
+  top: calc(100% + 8px);
+  z-index: 41;
+  width: min(290px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #2a1650, #170c33);
+  border: 2px solid var(--gold);
+  border-radius: 18px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  animation: dd-in 0.15s ease-out;
+}
+
+@keyframes dd-in {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.dd-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--gold);
+  padding: 4px 6px 2px;
+}
+
+.dd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 2px solid transparent;
+  background: var(--panel);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.dd-item:active { transform: scale(0.97); }
+.dd-item--sent { border-color: var(--green); background: rgba(67, 224, 138, 0.15); }
+.dd-emoji { font-size: 22px; }
+.dd-ok { margin-left: auto; font-size: 11px; color: var(--green); white-space: nowrap; }
+
+/* menu ⚙️ i zasady */
+.menu-modal { gap: 10px; max-height: 90vh; overflow-y: auto; }
+
+.rules {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.rules h2 { margin: 0 0 6px; font-size: 17px; }
+
+.rules ol {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.rules--compact { text-align: left; padding: 10px 12px; }
+.rules--compact ol { font-size: 13px; }
+
+.btn--block { width: 100%; }
+.skip-btn { margin-top: 10px; }
+
+/* ============ POCZEKALNIA ============ */
+.lobby-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lobby-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel2);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 4px 12px 4px 4px;
+  font-weight: 800;
+  font-size: 14px;
+  animation: feedback-pop 0.3s;
+}
+
+.lobby-player--me { border-color: var(--teal); }
+
+.opt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 2px solid var(--border);
+  background: var(--panel);
+  color: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  text-align: left;
+}
+
+.opt--on {
+  border-color: var(--teal);
+  background: rgba(46, 230, 210, 0.15);
+  box-shadow: 0 0 0 1px var(--teal) inset;
+}
+
+.opt-label { font-weight: 900; font-size: 14px; }
+.opt-hint { font-size: 12px; font-weight: 700; opacity: 0.6; }
+
+/* ============ CZEKANIE / WYNIK RUNDY / ZGADYWANIE ============ */
+.waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.waiting h2 { margin: 6px 0 0; }
+
+.queue {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--teal);
+  margin: 4px 0 0;
+}
+
+.round-result {
+  text-align: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 211, 77, 0.12);
+  border: 2px solid rgba(255, 211, 77, 0.5);
+  font-weight: 800;
+  animation: feedback-pop 0.35s;
+}
+
+.round-result--me {
+  background: rgba(67, 224, 138, 0.16);
+  border-color: var(--green);
+}
+
+.round-result-phrase {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: 0.75;
+  letter-spacing: 0.06em;
+}
+
+.solve-btn { font-size: 20px; }
+
+.solve-result {
+  font-size: 20px;
+  font-weight: 900;
+  padding: 12px;
+  border-radius: 14px;
+  animation: feedback-pop 0.3s;
+}
+
+.solve-result--ok { background: rgba(67, 224, 138, 0.2); color: #b9ffd9; }
+.solve-result--bad { background: rgba(255, 77, 109, 0.2); color: #ffd0da; }
+
+.lb-row--off { opacity: 0.5; }
+
+/* ============ HOME ============ */
+.home-steps {
+  margin: 0 0 10px;
+  padding: 12px 18px 12px 34px;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.7;
+  width: min(400px, 100%);
+}
+
+.home-card--main {
+  border-color: var(--teal);
+  background: rgba(46, 230, 210, 0.1);
+}
+
+/* ============ TV: nowe nakładki ============ */
+.tv-round {
+  background: var(--panel2);
+  border: 2px solid var(--border);
+  font-weight: 900;
+  font-size: min(1.8vw, 2.6vh);
+  padding: 0.6vh 1.4vw;
+  border-radius: 999px;
+}
+
+.tv-steps {
+  font-size: min(2vw, 2.8vh) !important;
+  opacity: 0.95 !important;
+  line-height: 1.6;
+}
+
+.tv-steps b { color: var(--gold); }
+
+.tv-writing h1 { font-size: min(4vw, 6vh); }
+
+.tv-writing-avatar {
+  border-radius: 50%;
+  padding: 0.6vh;
+  line-height: 0;
+  animation: gold-pulse 1.6s infinite;
+}
+
+.tv-queue {
+  color: var(--teal);
+  opacity: 1 !important;
+}
+
+.tv-next-host { color: var(--teal); font-size: 0.8em; }
+.tv-next-host b { color: #fff; }
+
+.tv-wrong {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4vh;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(90, 10, 30, 0.85), transparent 70%);
+  animation: miss-fade 3.2s both;
+}
+
+.tv-wrong-who {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  font-size: min(3vw, 4.4vh);
+  font-weight: 900;
+}
+
+.tv-wrong-guess {
+  font-size: min(4.4vw, 6.4vh);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-decoration: line-through;
+  text-decoration-color: var(--red);
+  max-width: 86vw;
+  text-align: center;
+}
+
+.tv-wrong-x {
+  font-size: min(6vw, 9vh);
+  font-weight: 900;
+  color: var(--red);
+  text-shadow: 0 0 40px rgba(255, 77, 109, 0.9);
+  animation: miss-pop 0.45s;
 }
 
 .tv-audio-hint {

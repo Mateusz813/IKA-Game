@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import confetti from '../lib/confetti.js'
-import { useGame, sortedPlayers, usedInfo } from '../lib/store.jsx'
+import {
+  useGame,
+  sortedPlayers,
+  usedInfo,
+  hostQueue,
+  roundLabel,
+  settingsLabel,
+} from '../lib/store.jsx'
 import { useFreshAction, serverNow } from '../lib/hooks.js'
 import { sync } from '../lib/sync/index.js'
 import { ALPHABET } from '../lib/alphabet.js'
+import { MEMES, memeById } from '../lib/memes.js'
 import {
   sounds,
   initAudio,
@@ -14,12 +22,7 @@ import {
   preloadSound,
 } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
-import { Logo, Avatar, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
-
-// Soundboard prowadzącego — dźwięki-memy grane na TV (pliki w /public/icons)
-const MEMES = {
-  plakal: { src: '/icons/plakal.mp3', caption: 'PŁAKAŁ! 😭' },
-}
+import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 // EASTER EGG: to hasło dostaje własną animację i dźwięk 💍
 const SPECIAL_PHRASE = 'CZY ZOSTANIESZ MOJĄ ŚWIADKOWĄ'
@@ -29,20 +32,26 @@ const isSpecialPhrase = (p) =>
     .replace(/\s+/g, ' ')
     .trim() === SPECIAL_PHRASE
 
+const CELEBRATE = ['win', 'allRevealed']
+
 export default function TV() {
-  const { state, ready, actions } = useGame()
+  const { state: s, ready, actions } = useGame()
   useWakeLock()
-  const special = ready && isSpecialPhrase(state.phrase)
-  useConfetti(
-    ready && !special && (state.status === 'finished' || state.status === 'over')
+  const special = ready && isSpecialPhrase(s.phrase)
+  const celebrate = useFreshAction(
+    CELEBRATE.includes(s.lastAction?.type) ? s.lastAction : null,
+    special ? 12000 : 8000
   )
-  const [soundOn, setSoundOn] = useState(
-    () => localStorage.getItem('ika-tv-sound') !== '0'
-  )
+  const players = sortedPlayers(s.players)
+  // bez graczy zawsze pokazujemy poczekalnię (np. stan po poprzedniej imprezie)
+  const phase = ready && !players.length ? 'lobby' : s.status
+  useConfetti(ready && !special && (!!celebrate || phase === 'over'))
+
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem('ika-tv-sound') !== '0')
   const audio = useAudioUnlock()
-  useTvSounds(ready ? state.lastAction : null, soundOn, special)
-  useMemeSound(ready ? state.meme : null, soundOn)
-  useReportTvAudio(ready, soundOn ? audio : 'muted', state.tvAudio?.state, actions)
+  useTvSounds(ready ? s.lastAction : null, soundOn, special)
+  useMemeSound(ready ? s.meme : null, soundOn)
+  useReportTvAudio(ready, soundOn ? audio : 'muted', s.tvAudio?.state, actions)
 
   // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
   useEffect(() => {
@@ -54,8 +63,6 @@ export default function TV() {
   }, [special])
 
   if (!ready) return <Spinner />
-  const s = state
-  const players = sortedPlayers(s.players)
 
   const audioBanner =
     soundOn && audio === 'locked' ? (
@@ -64,88 +71,88 @@ export default function TV() {
       </button>
     ) : null
 
-  const soundBtn = (
-    <button
-      className="btn btn--ghost btn--small"
-      title="Dźwięki na TV"
-      onClick={() => {
-        const next = !soundOn
-        setSoundOn(next)
-        localStorage.setItem('ika-tv-sound', next ? '1' : '0')
-        if (next) unlockAudio()
-      }}
-    >
-      {soundOn ? '🔊' : '🔇'}
-    </button>
+  const headerRight = (
+    <div className="tv-header-right">
+      <ModeBadge />
+      <button
+        className="btn btn--ghost btn--small"
+        title="Dźwięki na TV"
+        onClick={() => {
+          const next = !soundOn
+          setSoundOn(next)
+          localStorage.setItem('ika-tv-sound', next ? '1' : '0')
+          if (next) unlockAudio()
+        }}
+      >
+        {soundOn ? '🔊' : '🔇'}
+      </button>
+      <FullscreenButton />
+    </div>
   )
 
-  if (s.status === 'over')
+  if (phase === 'over' && !celebrate)
     return (
       <>
-        <TVOver s={s} players={players} soundBtn={soundBtn} />
+        <TVOver s={s} players={players} headerRight={headerRight} actions={actions} />
         <MemeFlash meme={s.meme} players={s.players} />
         {audioBanner}
       </>
     )
 
+  const showPhrase = phase === 'playing' || phase === 'finished' || !!celebrate
   return (
     <div className="tv">
       {audioBanner}
       <header className="tv-header">
         <Logo small />
-        {s.category && s.status !== 'idle' && (
-          <div className="tv-category">{s.category}</div>
+        {phase === 'playing' && s.category && <div className="tv-category">{s.category}</div>}
+        {['entering', 'playing', 'finished'].includes(phase) && (
+          <div className="tv-round">{roundLabel(s)}</div>
         )}
-        <div className="tv-header-right">
-          <ModeBadge />
-          {soundBtn}
-          <FullscreenButton />
-        </div>
+        {headerRight}
       </header>
 
       <main className="tv-main">
         <Board
-          phrase={s.status === 'idle' ? '' : s.phrase}
+          phrase={showPhrase ? s.phrase : ''}
           revealed={s.revealed}
           lastAction={s.lastAction}
           size="tv"
         />
-        {s.status === 'idle' && <IdleOverlay players={players} />}
+        {phase === 'lobby' && <LobbyOverlay s={s} players={players} />}
+        {phase === 'entering' && <HostWritingOverlay s={s} />}
         <MissOverlay lastAction={s.lastAction} />
+        <WrongSolveOverlay lastAction={s.lastAction} players={s.players} />
       </main>
 
       <MemeFlash meme={s.meme} players={s.players} />
 
-      {s.status === 'finished' ? (
-        <WinnerBanner s={s} />
-      ) : (
+      {phase === 'finished' ? (
+        <NextHostBar s={s} />
+      ) : phase === 'playing' ? (
         <div className="tv-ticker" key={s.lastAction?.ts || 'x'}>
           {tickerText(s.lastAction, s.players)}
         </div>
-      )}
+      ) : null}
 
-      <UsedStrip used={s.used} visible={s.status === 'playing'} />
+      <UsedStrip used={s.used} visible={phase === 'playing'} />
 
       {players.length > 0 && (
         <footer className="tv-players">
           {players.map((p, i) => (
             <div
               key={p.id}
-              className={`tv-player ${
-                s.activePlayerId === p.id ? 'tv-player--active' : ''
-              } ${s.winnerId === p.id ? 'tv-player--winner' : ''} ${
-                p.online === false ? 'tv-player--off' : ''
-              }`}
+              className={`tv-player ${s.activePlayerId === p.id ? 'tv-player--active' : ''} ${
+                s.winnerId === p.id && phase === 'finished' ? 'tv-player--winner' : ''
+              } ${p.online === false ? 'tv-player--off' : ''}`}
             >
-              {s.activePlayerId === p.id && (
-                <span className="tv-player-mic">🎤 odpowiada</span>
-              )}
-              {s.hostId === p.id && (
+              {s.activePlayerId === p.id && <span className="tv-player-mic">🎤 zgaduje</span>}
+              {s.hostId === p.id && phase !== 'lobby' && (
                 <span className="tv-player-mic tv-player-host">🎩 prowadzi</span>
               )}
               <Avatar player={p} size="min(3.4vw, 4.8vh)" />
               <span className="tv-player-name">
-                {['🥇', '🥈', '🥉'][i] || ''} {p.name}
+                {phase !== 'lobby' ? ['🥇', '🥈', '🥉'][i] || '' : ''} {p.name}
               </span>
               <span className="tv-player-score" key={p.score}>
                 {p.score || 0}
@@ -155,19 +162,93 @@ export default function TV() {
         </footer>
       )}
 
-      {s.status !== 'idle' && (
+      {phase !== 'lobby' && (
         <div className="tv-qr-corner">
           <QRJoin size={72} />
           <span>dołącz</span>
         </div>
       )}
 
-      {s.status === 'finished' &&
+      {celebrate &&
         (special ? (
           <SwiadkowaOverlay s={s} />
-        ) : s.winnerId ? (
-          <WinOverlay s={s} />
-        ) : null)}
+        ) : (
+          <WinOverlay s={s} winnerId={celebrate.playerId} />
+        ))}
+    </div>
+  )
+}
+
+// ——— poczekalnia ———
+function LobbyOverlay({ s, players }) {
+  return (
+    <div className="tv-idle">
+      <div className="tv-idle-inner">
+        <h1>🎡 Zeskanuj telefonem i dołącz!</h1>
+        <QRJoin size={200} />
+        <div className="tv-idle-url">{window.location.origin}/play</div>
+        {players.length > 0 ? (
+          <div className="tv-idle-players">
+            {players.map((p) => (
+              <span key={p.id} className="chip">
+                <Avatar player={p} size={20} /> {p.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p>Nikt jeszcze nie dołączył — bądź pierwszy!</p>
+        )}
+        <p className="tv-steps">
+          Gdy wszyscy są w grze, ktoś klika <b>▶ Zaczynamy!</b> na telefonie
+          <br />
+          Gramy: <b>{settingsLabel(s.settings)}</b>
+        </p>
+        <p className="tv-idle-install">
+          📲 Dodaj do ekranu głównego (iPhone): <b>Udostępnij</b> 📤 → przewiń w dół →{' '}
+          <b>„Dodaj do ekranu głównego”</b>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ——— ktoś wpisuje hasło ———
+function HostWritingOverlay({ s }) {
+  const host = s.players[s.hostId]
+  const queue = hostQueue(s.players, s.hostId).slice(0, 4)
+  return (
+    <div className="tv-idle">
+      <div className="tv-idle-inner tv-writing">
+        <div className="tv-writing-avatar">
+          <Avatar player={host} size="min(12vw, 18vh)" />
+        </div>
+        <h1>🎩 {host?.name || '…'} wymyśla hasło…</h1>
+        <p>Plansza pojawi się za chwilę ✍️</p>
+        {queue.length > 0 && (
+          <p className="tv-queue">Potem prowadzą: {queue.map((p) => p.name).join(' → ')}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Pasek po zakończonym haśle: kto zgadł + kto teraz wymyśla
+function NextHostBar({ s }) {
+  const winner = s.winnerId ? s.players[s.winnerId] : null
+  const next = s.players[s.hostId]
+  return (
+    <div className="tv-winner">
+      {winner ? (
+        <>
+          🏆 <b>{winner.name}</b> odgadł(a) hasło! <span className="tv-winner-pts">+100</span>
+        </>
+      ) : (
+        <>🎉 Hasło odsłonięte!</>
+      )}
+      <span className="tv-next-host">
+        {' '}
+        · 🎩 teraz hasło wymyśla <b>{next?.name || '…'}</b>
+      </span>
     </div>
   )
 }
@@ -228,20 +309,22 @@ function SwiadkowaOverlay({ s }) {
   )
 }
 
-// Wielka animacja zwycięzcy — pełny ekran, tylko na TV
-function WinOverlay({ s }) {
-  const winner = s.players[s.winnerId]
+// Wielka animacja końca hasła — ze zwycięzcą albo „wszystkie litery odsłonięte”
+function WinOverlay({ s, winnerId }) {
+  const winner = winnerId ? s.players[winnerId] : null
   return (
     <div className="win-overlay">
       <div className="win-rays" />
       <div className="win-card">
-        <div className="win-crown">👑</div>
-        <div className="win-avatar">
-          <Avatar player={winner} size="min(15vw, 22vh)" />
-        </div>
-        <div className="win-title">HASŁO ODGADNIĘTE!</div>
-        <div className="win-name">{winner?.name || '???'}</div>
-        <div className="win-pts">+100 pkt</div>
+        <div className="win-crown">{winner ? '👑' : '🎉'}</div>
+        {winner && (
+          <div className="win-avatar">
+            <Avatar player={winner} size="min(15vw, 22vh)" />
+          </div>
+        )}
+        <div className="win-title">{winner ? 'HASŁO ODGADNIĘTE!' : 'WSZYSTKIE LITERY ODSŁONIĘTE!'}</div>
+        {winner && <div className="win-name">{winner.name}</div>}
+        {winner && <div className="win-pts">+100 pkt</div>}
         <div className="win-phrase">
           {[...s.phrase].map((ch, i) =>
             ch === ' ' ? (
@@ -258,6 +341,22 @@ function WinOverlay({ s }) {
   )
 }
 
+// ❌ ktoś wpisał złe hasło
+function WrongSolveOverlay({ lastAction, players }) {
+  const fresh = useFreshAction(lastAction?.type === 'wrongSolve' ? lastAction : null, 3200)
+  if (!fresh) return null
+  const who = players[fresh.playerId]
+  return (
+    <div className="tv-wrong" key={fresh.ts}>
+      <div className="tv-wrong-who">
+        <Avatar player={who} size="min(5vw, 7vh)" /> {who?.name || '…'} próbuje:
+      </div>
+      <div className="tv-wrong-guess">„{fresh.guess}”</div>
+      <div className="tv-wrong-x">❌ PUDŁO!</div>
+    </div>
+  )
+}
+
 // Stan dźwięku TV ('on' | 'locked'); pierwszy klik/klawisz na stronie odblokowuje
 function useAudioUnlock() {
   const [st, setSt] = useState(() => {
@@ -269,7 +368,7 @@ function useAudioUnlock() {
     const unlock = () => unlockAudio()
     document.addEventListener('pointerdown', unlock)
     document.addEventListener('keydown', unlock)
-    preloadSound(MEMES.plakal.src)
+    MEMES.filter((m) => !m.optional).forEach((m) => preloadSound(m.src))
     setSt(audioState())
     return () => {
       off()
@@ -280,7 +379,7 @@ function useAudioUnlock() {
   return st
 }
 
-// TV zapisuje w bazie, czy jej dźwięk działa — prowadzący widzi to na telefonie.
+// TV zapisuje w bazie, czy jej dźwięk działa — gracze widzą to na telefonach.
 // Ponawiamy zapis tylko, gdy zmienia się nasz stan albo serwer oznaczył TV
 // jako „off” (np. po przeładowaniu karty) — bez przepychanki dwóch TV.
 function useReportTvAudio(ready, desired, dbState, actions) {
@@ -298,32 +397,32 @@ function useReportTvAudio(ready, desired, dbState, actions) {
   }, [ready, desired, dbState, actions])
 }
 
-// Dźwięk z soundboardu prowadzącego (tylko TV)
+// Dźwięk z soundboardu (tylko TV)
 function useMemeSound(meme, soundOn) {
   const lastTs = useRef(0)
   useEffect(() => {
     if (!meme || meme.ts === lastTs.current) return
     lastTs.current = meme.ts
     if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
-    const def = MEMES[meme.id]
-    if (def && soundOn) sounds.meme(def.src)
+    const def = memeById(meme.id)
+    if (def && soundOn) sounds.meme(def)
   }, [meme, soundOn])
 }
 
-// Napis-pieczątka przy memie z soundboardu: avatar + „OLA PŁAKAŁ! 😭”
+// Napis-pieczątka przy memie z soundboardu
 function MemeFlash({ meme, players }) {
   const fresh = useFreshAction(meme, 2800)
-  const def = fresh ? MEMES[fresh.id] : null
+  const def = fresh ? memeById(fresh.id) : null
   if (!def) return null
-  const who = fresh.targetId ? players?.[fresh.targetId] : null
+  const who = fresh.by ? players?.[fresh.by] : null
   return (
     <div className="meme-flash" key={fresh.ts}>
+      <span>{def.caption}</span>
       {who && (
         <span className="meme-flash-who">
-          <Avatar player={who} size="min(7vw, 10vh)" /> {who.name}
+          <Avatar player={who} size="min(3.5vw, 5vh)" /> 🔊 {who.name}
         </span>
       )}
-      <span>{def.caption}</span>
     </div>
   )
 }
@@ -331,22 +430,21 @@ function MemeFlash({ meme, players }) {
 // Dźwięki sterowane akcjami gry (tylko TV)
 function useTvSounds(lastAction, soundOn, special = false) {
   const lastTs = useRef(0)
-
   useEffect(() => {
     const a = lastAction
     if (!a || a.ts === lastTs.current) return
     lastTs.current = a.ts
     if (serverNow() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
     if (!soundOn) return
-    if (special && (a.type === 'win' || a.type === 'end')) sounds.please()
+    if (special && CELEBRATE.includes(a.type)) sounds.please()
     else if (a.type === 'hit') sounds.hit(a.count)
-    else if (a.type === 'miss') sounds.miss()
-    else if (a.type === 'win' || a.type === 'gameover') sounds.win()
+    else if (a.type === 'miss' || a.type === 'wrongSolve') sounds.miss()
+    else if (CELEBRATE.includes(a.type) || a.type === 'gameover') sounds.win()
   }, [lastAction, soundOn, special])
 }
 
 // ——— Podium na koniec gry ———
-function TVOver({ s, players, soundBtn }) {
+function TVOver({ s, players, headerRight, actions }) {
   const top = players.slice(0, 3)
   const rest = players.slice(3)
   // kolejność wizualna: 2. | 1. | 3.
@@ -355,11 +453,7 @@ function TVOver({ s, players, soundBtn }) {
     <div className="tv">
       <header className="tv-header">
         <Logo small />
-        <div className="tv-header-right">
-          <ModeBadge />
-          {soundBtn}
-          <FullscreenButton />
-        </div>
+        {headerRight}
       </header>
       <div className="tv-over">
         <h1 className="tv-over-title">🏁 KONIEC GRY!</h1>
@@ -368,10 +462,7 @@ function TVOver({ s, players, soundBtn }) {
             const place = players.indexOf(p) + 1
             return (
               <div key={p.id} className={`podium-col podium-col--${place}`}>
-                <Avatar
-                  player={p}
-                  size={place === 1 ? 'min(10vw, 15vh)' : 'min(7.5vw, 11vh)'}
-                />
+                <Avatar player={p} size={place === 1 ? 'min(10vw, 15vh)' : 'min(7.5vw, 11vh)'} />
                 <span className="podium-name">{p.name}</span>
                 <span className="podium-score">{p.score || 0} pkt</span>
                 <div className={`podium-base podium-base--${place}`}>{place}</div>
@@ -388,7 +479,16 @@ function TVOver({ s, players, soundBtn }) {
             ))}
           </div>
         )}
-        <p className="tv-over-hint">Brawa dla wszystkich! 👏 Gospodarz może zacząć nową grę.</p>
+        <p className="tv-over-hint">
+          Brawa dla wszystkich! 👏 Gracie dalej? Kliknijcie <b>🔄 Zagraj jeszcze raz</b> na
+          telefonie albo tutaj:
+        </p>
+        <ConfirmButton
+          className="btn btn--green"
+          label="🔄 Nowa gra"
+          confirmLabel="Tak, wracamy do poczekalni ▶"
+          onConfirm={() => actions.newGame()}
+        />
       </div>
     </div>
   )
@@ -399,58 +499,18 @@ function tickerText(a, players) {
   const name = a.playerId ? players[a.playerId]?.name : null
   switch (a.type) {
     case 'start':
-      return '🎬 Nowa runda — zgadujcie litery!'
+      return '🎬 Plansza gotowa — zgadujcie!'
     case 'turn':
-      return `🎤 Odpowiada: ${name ?? '…'}`
+      return `🎤 Literę wybiera: ${name ?? '…'}`
     case 'hit':
-      return `✔ ${name ?? 'Prowadzący'} trafia: ${a.letter} ×${a.count}${
-        a.playerId ? ` · +${a.count * 10} pkt` : ''
-      }`
+      return `✔ ${name ?? '…'} trafia: ${a.letter} ×${a.count} · +${a.count * 10} pkt`
     case 'miss':
       return `✗ Nie ma litery ${a.letter}${name ? ` (${name})` : ''}`
-    case 'win':
-      return `🏆 ${name ?? '…'} zgaduje hasło! +100 pkt`
-    case 'end':
-      return '🎉 Hasło odsłonięte!'
-    case 'host':
-      return name
-        ? `🎩 Prowadzenie przejmuje: ${name}!`
-        : '🎩 Prowadzenie wraca do gospodarza'
-    case 'hostDecline':
-      return `😅 ${name ?? 'Ktoś'} nie chce prowadzić`
-    case 'gameover':
-      return '🏁 Koniec gry!'
-    case 'reset':
-      return '⏳ Za chwilę nowe hasło…'
+    case 'wrongSolve':
+      return `❌ ${name ?? '…'} nie zgaduje hasła`
     default:
-      return ''
+      return '🎯 Znasz hasło? Kliknij „Znam hasło!” na telefonie'
   }
-}
-
-function IdleOverlay({ players }) {
-  return (
-    <div className="tv-idle">
-      <div className="tv-idle-inner">
-        <h1>Zeskanuj i dołącz do gry!</h1>
-        <QRJoin size={200} />
-        <div className="tv-idle-url">{window.location.origin}/play</div>
-        {players.length > 0 && (
-          <div className="tv-idle-players">
-            {players.map((p) => (
-              <span key={p.id} className="chip">
-                <Avatar player={p} size={20} /> {p.name}
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="tv-idle-install">
-          📲 Dodaj do ekranu głównego (iPhone): <b>Udostępnij</b> 📤 → przewiń w dół →{' '}
-          <b>„Dodaj do ekranu głównego”</b>
-        </p>
-        <p>⏳ Czekamy, aż prowadzący wpisze hasło…</p>
-      </div>
-    </div>
-  )
 }
 
 function MissOverlay({ lastAction }) {
@@ -464,22 +524,6 @@ function MissOverlay({ lastAction }) {
   )
 }
 
-function WinnerBanner({ s }) {
-  const winner = s.winnerId ? s.players[s.winnerId] : null
-  return (
-    <div className="tv-winner">
-      {winner ? (
-        <>
-          <Avatar player={winner} size="min(4vw, 5.5vh)" /> 🏆 WYGRYWA{' '}
-          <b>{winner.name}</b>! <span className="tv-winner-pts">+100 pkt</span>
-        </>
-      ) : (
-        <>🎉 HASŁO ODGADNIĘTE!</>
-      )}
-    </div>
-  )
-}
-
 function UsedStrip({ used, visible }) {
   if (!visible) return null
   return (
@@ -489,9 +533,7 @@ function UsedStrip({ used, visible }) {
         return (
           <span
             key={L}
-            className={`tv-used-l ${
-              r === 'hit' ? 'tv-used-l--hit' : r === 'miss' ? 'tv-used-l--miss' : ''
-            }`}
+            className={`tv-used-l ${r === 'hit' ? 'tv-used-l--hit' : r === 'miss' ? 'tv-used-l--miss' : ''}`}
           >
             {L}
           </span>

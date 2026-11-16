@@ -1,64 +1,38 @@
 import { useMemo, useState } from 'react'
-import { useGame, sortedPlayers } from '../lib/store.jsx'
+import { sortedPlayers, roundLabel } from '../lib/store.jsx'
 import { cleanPhrase } from '../lib/alphabet.js'
 import { layoutBoard } from '../lib/layout.js'
-import { useFreshAction } from '../lib/hooks.js'
 import Board from './Board.jsx'
 import Keyboard from './Keyboard.jsx'
 import { Avatar, ConfirmButton } from './common.jsx'
 
-// Panel prowadzącego — wyłącznie dla gracza, który aktualnie ma pilota.
-// Tylko on widzi hasło i tylko on może przekazać prowadzenie dalej.
-export default function HostConsole({ hostId }) {
-  const { state: s, actions } = useGame()
-  return (
-    <>
-      {s.status === 'playing' ? (
-        <GamePanel s={s} actions={actions} hostId={hostId} />
-      ) : s.status === 'over' ? (
-        <OverPanel s={s} actions={actions} />
-      ) : (
-        <SetupPanel s={s} actions={actions} hostId={hostId} />
-      )}
-      <PlayersPanel s={s} actions={actions} hostId={hostId} />
-    </>
-  )
-}
-
-function SetupPanel({ s, actions, hostId }) {
-  if (s.status === 'finished')
-    return (
-      <section className="panel">
-        <FinishedBanner s={s} />
-        <HandoverCard s={s} actions={actions} hostId={hostId} />
-      </section>
-    )
-  return <PhraseForm s={s} actions={actions} />
-}
-
-function PhraseForm({ s, actions }) {
+// Formularz hasła — widzi go wyłącznie osoba, na którą wypadła kolej
+export function PhraseForm({ s, myId, actions }) {
   const [phrase, setPhrase] = useState('')
   const [category, setCategory] = useState('')
   const clean = cleanPhrase(phrase)
   const { fits } = useMemo(() => layoutBoard(clean), [clean])
   const tooLong = clean.split(' ').some((w) => w.length > 14)
   const canStart = !!clean && fits
+  const others = Object.keys(s.players).filter((id) => id !== myId).length
 
   return (
     <section className="panel">
-      <h2>Nowe hasło</h2>
+      <h2>✍️ Wpisz hasło do zgadywania</h2>
+      <p className="hint">Nikt poza Tobą go nie widzi — ani na telefonach, ani na TV.</p>
       <label className="field">
-        <span>Hasło do odgadnięcia</span>
+        <span>Hasło (może być kilka słów)</span>
         <textarea
           rows={2}
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
           placeholder="np. LEPSZY WRÓBEL W GARŚCI"
           className="input input--phrase"
+          autoComplete="off"
         />
       </label>
       <label className="field">
-        <span>Kategoria (opcjonalnie)</span>
+        <span>Podpowiedź / kategoria (opcjonalnie, widzą ją wszyscy)</span>
         <input
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -69,7 +43,7 @@ function PhraseForm({ s, actions }) {
 
       {clean && (
         <div className="preview">
-          <span className="preview-label">Podgląd planszy:</span>
+          <span className="preview-label">Tak będzie wyglądać plansza:</span>
           <Board phrase={fits ? clean : ''} revealed={{}} ghost size="mini" />
           {!fits && (
             <div className="form-error">
@@ -82,195 +56,127 @@ function PhraseForm({ s, actions }) {
       )}
 
       <button
-        className="btn btn--primary btn--big"
+        className="btn btn--green btn--big btn--block"
         disabled={!canStart}
-        onClick={() => actions.startGame(clean, category)}
+        onClick={() => actions.submitPhrase(myId, clean, category)}
       >
-        🎬 Start gry!
+        🎬 Start — pokaż planszę!
       </button>
+      {others > 0 && (
+        <ConfirmButton
+          className="btn btn--ghost btn--block skip-btn"
+          label="⏭ Nie mam pomysłu — pomiń mnie"
+          confirmLabel="Na pewno? Hasło wymyśli następna osoba"
+          onConfirm={() => actions.passHost()}
+        />
+      )}
     </section>
   )
 }
 
-function FinishedBanner({ s }) {
-  const winner = s.winnerId ? s.players[s.winnerId] : null
-  return (
-    <div className="finished-banner">
-      {winner ? (
-        <>🏆 Hasło „{s.phrase}” odgadł(a) <b>{winner.name}</b>!</>
-      ) : (
-        <>🎉 Runda zakończona. Hasło: „{s.phrase}”</>
-      )}
-    </div>
-  )
-}
-
-// Po zakończonym haśle: zielony = wpisuję dalej, czerwony = przekazuję pilota
-function HandoverCard({ s, actions, hostId }) {
-  const [picking, setPicking] = useState(false)
-  const fresh = useFreshAction(s.lastAction, 6000)
-  const declinedBy =
-    fresh?.type === 'hostDecline' ? s.players[fresh.playerId]?.name : null
-  const hasCandidates = sortedPlayers(s.players).some((p) => p.id !== hostId)
-
-  if (s.handover) {
-    const name = s.players[s.handover.toId]?.name || '…'
-    return (
-      <div className="handover">
-        <h3>⏳ Czekamy, aż <b>{name}</b> przyjmie prowadzenie…</h3>
-        <button className="btn" onClick={() => actions.cancelOffer()}>
-          Anuluj
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="handover">
-      <h3>Kto podaje następne hasło?</h3>
-      {declinedBy && (
-        <p className="hint">😅 {declinedBy} nie przyjmuje prowadzenia — wybierz kogoś innego albo prowadź dalej.</p>
-      )}
-      <div className="handover-choice">
-        <button className="btn btn--green btn--big" onClick={() => actions.newRound()}>
-          ✅ Ja — wpisuję dalej
-        </button>
-        <button
-          className="btn btn--red btn--big"
-          disabled={!hasCandidates}
-          onClick={() => setPicking(true)}
-        >
-          🔁 Przekazuję prowadzenie
-        </button>
-      </div>
-      {picking && (
-        <PlayerPicker
-          title="Komu przekazać prowadzenie?"
-          subtitle="Ta osoba wpisze następne hasło"
-          rotate
-          s={s}
-          hostId={hostId}
-          onPick={(id) => {
-            actions.offerHost(id)
-            setPicking(false)
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-function GamePanel({ s, actions, hostId }) {
-  const [picker, setPicker] = useState(null) // 'award' | 'handover' | null
+// Runda z perspektywy prowadzącego: widzi hasło, wyznacza 🎤, przyznaje 🏆
+export function HostPlaying({ s, myId, actions }) {
+  const [picker, setPicker] = useState(false)
+  const players = sortedPlayers(s.players).filter((p) => p.id !== myId)
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
-  const pendingName = s.handover ? s.players[s.handover.toId]?.name : null
-  const hasCandidates = sortedPlayers(s.players).some((p) => p.id !== hostId)
+
   return (
-    <section className="panel">
-      <div className="admin-category">
-        {s.category ? <span className="chip">{s.category}</span> : <span />}
-        <span className="chip chip--muted">runda {s.round}</span>
+    <>
+      <div className="status-strip status-strip--turn">
+        🎩 Prowadzisz! Hasło widzisz tylko Ty.
       </div>
 
-      <Board
-        phrase={s.phrase}
-        revealed={s.revealed}
-        lastAction={s.lastAction}
-        ghost
-        size="mini"
-      />
-
-      <div className={`turn-info ${activeName ? 'turn-info--active' : ''}`}>
-        {activeName ? (
-          <>🎤 Odpowiada: <b>{activeName}</b></>
-        ) : (
-          <>🔒 Nikt nie ma tury — wyznacz gracza z listy niżej</>
-        )}
-      </div>
-
-      <p className="hint">
-        Podgląd liter — klikają gracze na swoich telefonach. Ty tylko wyznaczasz,
-        kto odpowiada.
-      </p>
-      <Keyboard used={s.used} viewerId={hostId} readOnly />
-
-      {pendingName ? (
-        <div className="handover" style={{ marginTop: 14 }}>
-          <h3>⏳ Czekamy, aż <b>{pendingName}</b> przejmie prowadzenie…</h3>
-          <button className="btn" onClick={() => actions.cancelOffer()}>
-            Anuluj
-          </button>
+      <section className="panel">
+        <div className="admin-category">
+          {s.category ? <span className="chip">{s.category}</span> : <span />}
+          <span className="chip chip--muted">{roundLabel(s)}</span>
         </div>
-      ) : (
-        <div className="admin-actions admin-actions--stack">
-          <button
-            className="btn btn--gold btn--big"
-            disabled={!hasCandidates}
-            onClick={() => setPicker('award')}
-          >
-            🏆 Ktoś odgadnął hasło!
-          </button>
-          <button
-            className="btn btn--red btn--big"
-            disabled={!hasCandidates}
-            onClick={() => setPicker('handover')}
-          >
-            🔁 Przekaż prowadzenie
-          </button>
+        <Board phrase={s.phrase} revealed={s.revealed} lastAction={s.lastAction} ghost size="mini" />
+        <div className={`turn-info ${activeName ? 'turn-info--active' : ''}`}>
+          {activeName ? (
+            <>🎤 Literę wybiera teraz: <b>{activeName}</b></>
+          ) : (
+            <>👇 Wybierz, kto zgaduje literę</>
+          )}
         </div>
-      )}
+      </section>
 
-      {picker === 'award' && (
+      <section className="panel">
+        <h2>1️⃣ Kto zgaduje literę?</h2>
+        <p className="hint">
+          Wskazana osoba klika literę na swoim telefonie. Potem wybierasz kolejną.
+        </p>
+        {!players.length && <p className="hint">Nikt jeszcze nie dołączył 🙂</p>}
+        <ul className="admin-players">
+          {players.map((p) => {
+            const active = s.activePlayerId === p.id
+            return (
+              <li key={p.id} className={`admin-player ${active ? 'admin-player--active' : ''}`}>
+                <Avatar player={p} size={34} />
+                <span className={`dot ${p.online === false ? 'dot--off' : ''}`} />
+                <span className="admin-player-name">{p.name}</span>
+                <span className="admin-player-score">{p.score || 0} pkt</span>
+                <div className="admin-player-actions">
+                  <button
+                    className={`btn ${active ? 'btn--warn' : 'btn--primary'}`}
+                    onClick={() => (active ? actions.revokeTurn() : actions.grantTurn(p.id))}
+                  >
+                    {active ? '🔒 Cofnij wybór' : '🎤 Niech zgaduje literę'}
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      <section className="panel">
+        <h2>2️⃣ Ktoś powiedział całe hasło na głos?</h2>
+        <p className="hint">
+          Gracze mogą też wpisać hasło sami (przycisk 🎯 na ich telefonach) — wtedy
+          punkty liczą się automatycznie.
+        </p>
+        <button
+          className="btn btn--gold btn--big btn--block"
+          disabled={!players.length}
+          onClick={() => setPicker(true)}
+        >
+          🏆 Tak — przyznaj +100 pkt
+        </button>
+      </section>
+
+      <section className="panel">
+        <h2>Litery w tej rundzie</h2>
+        <p className="hint">Podgląd — litery klikają gracze.</p>
+        <Keyboard used={s.used} viewerId={myId} readOnly />
+      </section>
+
+      {picker && (
         <PlayerPicker
           title="Kto odgadnął hasło?"
-          subtitle="Ta osoba dostanie +100 pkt, hasło się odsłoni 🎉"
-          s={s}
-          hostId={hostId}
+          subtitle="Ta osoba dostanie +100 pkt, a hasło się odsłoni 🎉"
+          players={players}
           onPick={(id) => {
             actions.awardPhrase(id)
-            setPicker(null)
+            setPicker(false)
           }}
-          onClose={() => setPicker(null)}
+          onClose={() => setPicker(false)}
         />
       )}
-      {picker === 'handover' && (
-        <PlayerPicker
-          title="Komu przekazać prowadzenie?"
-          subtitle="Ta osoba dokończy prowadzenie tego hasła (zobaczy je!)"
-          rotate
-          s={s}
-          hostId={hostId}
-          onPick={(id) => {
-            actions.offerHost(id)
-            setPicker(null)
-          }}
-          onClose={() => setPicker(null)}
-        />
-      )}
-    </section>
+    </>
   )
 }
 
-// Popup wyboru gracza (przyznanie hasła / przekazanie prowadzenia)
-function PlayerPicker({ title, subtitle, s, hostId, onPick, onClose, rotate = false }) {
-  let players = sortedPlayers(s.players).filter((p) => p.id !== hostId)
-  if (rotate)
-    players = [...players].sort(
-      (a, b) => (a.hostedAt || 0) - (b.hostedAt || 0) || a.joinedAt - b.joinedAt
-    )
+// Popup wyboru gracza
+export function PlayerPicker({ title, subtitle, players, onPick, onClose }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
         {subtitle && <p>{subtitle}</p>}
-        {rotate && players.length > 1 && (
-          <p className="hint">▶ = kolej według rotacji</p>
-        )}
         <div className="picker-list">
-          {players.map((p, i) => (
+          {players.map((p) => (
             <button key={p.id} className="btn picker-row" onClick={() => onPick(p.id)}>
-              {rotate && i === 0 ? <span className="picker-next">▶</span> : null}
               <Avatar player={p} size={30} />
               <span className="picker-name">{p.name}</span>
               <span className="picker-score">{p.score || 0} pkt</span>
@@ -285,153 +191,14 @@ function PlayerPicker({ title, subtitle, s, hostId, onPick, onClose, rotate = fa
   )
 }
 
-// Koniec gry — podsumowanie po stronie prowadzącego
-function OverPanel({ s, actions }) {
-  const players = sortedPlayers(s.players)
-  return (
-    <section className="panel">
-      <h2>🏁 Koniec gry!</h2>
-      <p className="hint">Podium świeci się na telewizorze. Co dalej?</p>
-      <ol className="over-list">
-        {players.map((p, i) => (
-          <li key={p.id}>
-            <span className="lb-rank">{['🥇', '🥈', '🥉'][i] || `${i + 1}.`}</span>
-            <Avatar player={p} size={30} />
-            <span className="lb-name">{p.name}</span>
-            <span className="lb-score">{p.score || 0}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="admin-actions">
-        <button className="btn btn--primary" onClick={() => actions.newRound()}>
-          ▶ Gramy dalej (punkty zostają)
-        </button>
-        <ConfirmButton
-          className="btn"
-          label="🔄 Nowa gra od zera"
-          confirmLabel="Wyzerować punkty?"
-          onConfirm={() => actions.newGame()}
-        />
-        <ConfirmButton
-          className="btn btn--danger"
-          label="⏮ Od samego początku"
-          confirmLabel="Usunąć też graczy?"
-          onConfirm={() => actions.resetAll()}
-        />
-      </div>
-    </section>
-  )
-}
-
-// Co dzieje się z dźwiękiem na TV — żeby prowadzący wiedział, czemu cisza
-function TvAudioHint({ state }) {
+// Co dzieje się z dźwiękiem na TV — żeby było wiadomo, czemu cisza
+export function TvAudioHint({ state }) {
   if (state === 'on') return null
   const text =
     state === 'locked'
       ? '🔇 Telewizor ma zablokowany dźwięk — kliknij raz w ekran TV'
       : state === 'muted'
         ? '🔇 Dźwięk na TV jest wyłączony — włącz 🔊 w rogu telewizora'
-        : '📺 Telewizor nie jest podłączony — otwórz grę na TV (Telewizor)'
+        : '📺 Telewizor nie jest włączony — otwórz grę na TV („Telewizor”)'
   return <p className="tv-audio-hint">{text}</p>
-}
-
-// Ikonka 😭 — puszcza „płakał” na TV z avatarem tego gracza
-function CryButton({ player, onCry }) {
-  const [sent, setSent] = useState(0)
-  return (
-    <button
-      key={sent}
-      className={`cry-btn ${sent ? 'cry-btn--sent' : ''}`}
-      title={`${player.name} płakał! (dźwięk na TV)`}
-      aria-label={`Puść „płakał” dla ${player.name}`}
-      onClick={() => {
-        onCry(player.id)
-        setSent((x) => x + 1)
-      }}
-    >
-      😭
-    </button>
-  )
-}
-
-function PlayersPanel({ s, actions, hostId }) {
-  const players = sortedPlayers(s.players)
-  const playing = s.status === 'playing'
-  return (
-    <section className="panel">
-      <h2>Gracze ({players.length})</h2>
-      {!players.length && (
-        <p className="hint">
-          Nikt jeszcze nie dołączył. Gracze wchodzą na stronę i wybierają „Gracz” —
-          na ekranie TV jest kod QR.
-        </p>
-      )}
-      {playing && players.length > 0 && (
-        <p className="hint">
-          🎤 wyznacz osobę — tylko ona może wtedy kliknąć literę na swoim telefonie
-        </p>
-      )}
-      {players.length > 0 && (
-        <p className="hint">😭 przy imieniu = „płakał!” na telewizorze</p>
-      )}
-      {players.length > 0 && <TvAudioHint state={s.tvAudio?.state} />}
-      <ul className="admin-players">
-        {players.map((p) => {
-          const active = s.activePlayerId === p.id
-          const isMe = hostId && p.id === hostId
-          return (
-            <li key={p.id} className={`admin-player ${active ? 'admin-player--active' : ''}`}>
-              <Avatar player={p} size={34} />
-              <span className={`dot ${p.online === false ? 'dot--off' : ''}`} />
-              <span className="admin-player-name">
-                {p.id === s.hostId ? '🎩 ' : ''}{p.name}
-              </span>
-              <CryButton player={p} onCry={(id) => actions.playMeme('plakal', id)} />
-              <span className="admin-player-score">{p.score || 0} pkt</span>
-              {isMe ? (
-                <span className="host-tag">to Ty</span>
-              ) : (
-                <ConfirmButton
-                  className="btn btn--small btn--ghost"
-                  label="✕"
-                  confirmLabel="Usunąć?"
-                  onConfirm={() => actions.removePlayer(p.id)}
-                />
-              )}
-              {playing && !isMe && (
-                <div className="admin-player-actions">
-                  <button
-                    className={`btn ${active ? 'btn--warn' : 'btn--primary'}`}
-                    onClick={() =>
-                      active ? actions.revokeTurn() : actions.grantTurn(p.id)
-                    }
-                  >
-                    {active ? '🔒 Zabierz turę' : '🎤 Wyznacz do odpowiedzi'}
-                  </button>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      <div className="admin-actions">
-        {s.status !== 'over' && players.length > 0 && (
-          <ConfirmButton
-            className="btn btn--gold"
-            label="🏁 Zakończ grę"
-            confirmLabel="Pokazać podium?"
-            onConfirm={() => actions.endGame()}
-          />
-        )}
-        {players.length > 0 && s.status !== 'over' && (
-          <ConfirmButton
-            className="btn btn--ghost"
-            label="Wyzeruj punkty"
-            confirmLabel="Wyzerować wszystkim?"
-            onConfirm={() => actions.resetScores()}
-          />
-        )}
-      </div>
-    </section>
-  )
 }

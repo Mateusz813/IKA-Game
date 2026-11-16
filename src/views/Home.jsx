@@ -6,29 +6,24 @@ export default function Home() {
     <div className="home">
       <Logo />
       <p className="home-sub">Domowe Koło Fortuny 🎡</p>
+      <ol className="home-steps">
+        <li>📺 Otwórz <b>Telewizor</b> na dużym ekranie</li>
+        <li>📱 Każdy (Ty też!) skanuje kod QR i wpisuje imię</li>
+        <li>▶ Ktoś klika <b>Zaczynamy</b> — i gramy!</li>
+      </ol>
       <div className="home-cards">
         <Link to="/tv" className="home-card">
           <span className="home-card-emoji">📺</span>
           <span className="home-card-title">Telewizor</span>
-          <span className="home-card-desc">Plansza dla wszystkich — odpal na TV</span>
+          <span className="home-card-desc">Plansza i kod QR dla wszystkich</span>
         </Link>
-        <Link to="/play" className="home-card">
+        <Link to="/play" className="home-card home-card--main">
           <span className="home-card-emoji">🎮</span>
-          <span className="home-card-title">Gracz</span>
-          <span className="home-card-desc">
-            Zgaduj litery, zbieraj punkty — i prowadź hasło, gdy Twoja kolej 🎩
-          </span>
-        </Link>
-        <Link to="/play?host=1" className="home-card">
-          <span className="home-card-emoji">🎩</span>
-          <span className="home-card-title">Admin</span>
-          <span className="home-card-desc">
-            Też grasz normalnie — ale to Ty podajesz pierwsze hasło
-          </span>
+          <span className="home-card-title">Graj na telefonie</span>
+          <span className="home-card-desc">Zgadujesz litery, a gdy przyjdzie Twoja kolej — wymyślasz hasło 🎩</span>
         </Link>
       </div>
       <ModeBadge />
-      <Link to="/admin" className="home-emergency">🎛️ panel awaryjny</Link>
     </div>
   )
 }

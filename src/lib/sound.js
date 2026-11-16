@@ -63,22 +63,30 @@ function loadBuffer(src) {
 
 export const preloadSound = (src) => loadBuffer(src).catch(() => {})
 
-// Odtwarza nagranie `times` razy pod rząd; zwraca listę źródeł (do stop)
-async function playFile(src, times = 1, vol = 1) {
+// Odtwarza nagranie `times` razy pod rząd; start/dur (s) wycinają fragment,
+// który kończy się krótkim wyciszeniem. Zwraca listę źródeł (do stop).
+async function playFile(src, times = 1, { vol = 1, start = 0, dur = null } = {}) {
   if (!running()) return []
   const buf = await loadBuffer(src)
   if (!running()) return []
+  const offset = Math.min(start, Math.max(0, buf.duration - 0.05))
+  const len = Math.min(dur ?? Infinity, buf.duration - offset)
   const gain = ctx.createGain()
-  gain.gain.value = vol
   gain.connect(ctx.destination)
   const t0 = ctx.currentTime + 0.03
+  gain.gain.setValueAtTime(vol, t0)
   const out = []
   for (let i = 0; i < times; i++) {
     const s = ctx.createBufferSource()
     s.buffer = buf
     s.connect(gain)
-    s.start(t0 + i * buf.duration)
+    s.start(t0 + i * len, offset, len)
     out.push(s)
+  }
+  if (dur != null && len > 0.6) {
+    const end = t0 + times * len
+    gain.gain.setValueAtTime(vol, end - 0.4)
+    gain.gain.linearRampToValueAtTime(0.0001, end)
   }
   return out
 }
@@ -175,14 +183,14 @@ export const sounds = {
     )
   },
 
-  // soundboard: nagranie-mem; nowe kliknięcie przerywa poprzednie
-  meme(src) {
+  // soundboard: nagranie-mem ({ src, start, dur }); nowe przerywa poprzednie
+  meme(m) {
     stopAll(memeSources)
     memeSources = []
-    if (!running()) return
-    playFile(src, 1).then(
+    if (!running() || !m) return
+    playFile(m.src, 1, { start: m.start || 0, dur: m.dur ?? null }).then(
       (srcs) => (memeSources = srcs),
-      (err) => console.warn('[IKA] Nie udało się odtworzyć', src, err)
+      (err) => console.warn('[IKA] Nie udało się odtworzyć', m.src, err)
     )
   },
 
