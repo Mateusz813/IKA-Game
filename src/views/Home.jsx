@@ -1,10 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useGame } from '../lib/store.jsx'
-import { Logo, ModeBadge, ConfirmButton } from '../components/common.jsx'
+import { Logo, ModeBadge } from '../components/common.jsx'
 
 export default function Home() {
-  const { state, ready, actions } = useGame()
-  const count = ready ? Object.keys(state.players).length : 0
   return (
     <div className="home">
       <Logo />
@@ -26,20 +23,6 @@ export default function Home() {
           <span className="home-card-desc">Zgadujesz litery, a gdy przyjdzie Twoja kolej — wymyślasz hasło 🎩</span>
         </Link>
       </div>
-      {count > 0 && (
-        <div className="home-saved">
-          <span>
-            💾 Trwa zapisana gra: {count} {count === 1 ? 'osoba' : count < 5 ? 'osoby' : 'osób'}.
-            Nowa impreza?
-          </span>
-          <ConfirmButton
-            className="btn btn--small"
-            label="🧹 Zacznij od zera"
-            confirmLabel="Usunąć graczy i punkty?"
-            onConfirm={() => actions.resetAll()}
-          />
-        </div>
-      )}
       <ModeBadge />
     </div>
   )

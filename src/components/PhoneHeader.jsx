@@ -182,15 +182,6 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
           />
         )}
         <ConfirmButton
-          className="dd-item dd-item--plain"
-          label="🧹 Nowa impreza — wyczyść wszystko"
-          confirmLabel="Usunąć wszystkich graczy i punkty?"
-          onConfirm={() => {
-            actions.resetAll()
-            onClose()
-          }}
-        />
-        <ConfirmButton
           className="dd-item dd-item--plain dd-item--danger"
           label="🚪 Opuść grę"
           confirmLabel="Na pewno wychodzisz?"

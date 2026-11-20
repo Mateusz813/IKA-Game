@@ -397,11 +397,6 @@ function makeActions(get) {
       sync.update(u)
     },
 
-    // 🧹 nowa impreza: usuwa wszystkich graczy i punkty, pusta poczekalnia
-    resetAll() {
-      sync.update(fullReset())
-    },
-
     // ——— gracze ———
     joinPlayer(id, name, photo = null) {
       const s = get()

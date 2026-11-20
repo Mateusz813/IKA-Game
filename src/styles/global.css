@@ -979,21 +979,6 @@ textarea {
   width: min(400px, 100%);
 }
 
-.home-saved {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: min(400px, 100%);
-  background: rgba(255, 211, 77, 0.1);
-  border: 2px solid rgba(255, 211, 77, 0.4);
-  border-radius: 14px;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: left;
-}
-
 .home-card--main {
   border-color: var(--teal);
   background: rgba(46, 230, 210, 0.1);
