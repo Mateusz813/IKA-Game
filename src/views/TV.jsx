@@ -87,6 +87,14 @@ export default function TV() {
   const headerRight = (
     <div className="tv-header-right">
       <ModeBadge />
+      {players.length > 0 && (
+        <ConfirmButton
+          className="btn btn--ghost btn--small"
+          label="🧹 Od zera"
+          confirmLabel="Usunąć graczy i punkty?"
+          onConfirm={() => actions.resetAll()}
+        />
+      )}
       <button
         className="btn btn--ghost btn--small"
         title="Dźwięki na TV"

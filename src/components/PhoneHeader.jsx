@@ -173,7 +173,7 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
         {s.status !== 'lobby' && (
           <ConfirmButton
             className="dd-item dd-item--plain"
-            label="🔄 Nowa gra od zera (punkty = 0)"
+            label="🔄 Jeszcze raz (ci sami gracze, punkty 0)"
             confirmLabel="Na pewno? Wszyscy wracają do poczekalni"
             onConfirm={() => {
               actions.newGame()
@@ -181,6 +181,15 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
             }}
           />
         )}
+        <ConfirmButton
+          className="dd-item dd-item--plain"
+          label="🧹 Nowa impreza — wyczyść wszystko"
+          confirmLabel="Usunąć wszystkich graczy i punkty?"
+          onConfirm={() => {
+            actions.resetAll()
+            onClose()
+          }}
+        />
         <ConfirmButton
           className="dd-item dd-item--plain dd-item--danger"
           label="🚪 Opuść grę"

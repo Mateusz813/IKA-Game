@@ -62,17 +62,23 @@ export function GameProvider({ children }) {
   const stateRef = useRef(state)
   stateRef.current = state
 
-  useEffect(
-    () =>
-      sync.subscribe((v) =>
-        setRaw((prev) =>
-          JSON.stringify(prev ?? null) === JSON.stringify(v ?? null)
-            ? prev ?? null
-            : v ?? null
-        )
-      ),
-    []
-  )
+  useEffect(() => {
+    let first = true
+    return sync.subscribe((v) => {
+      // Gra sprzed wielu godzin (poprzednia impreza) — zaczynamy od zera,
+      // zanim ktokolwiek zobaczy stary stan albo do niego dołączy.
+      if (first) {
+        first = false
+        if (isStale(v)) {
+          sync.update(fullReset())
+          return
+        }
+      }
+      setRaw((prev) =>
+        JSON.stringify(prev ?? null) === JSON.stringify(v ?? null) ? prev ?? null : v ?? null
+      )
+    })
+  }, [])
 
   const actions = useMemo(() => makeActions(() => stateRef.current), [])
   const value = useMemo(
@@ -85,6 +91,44 @@ export function GameProvider({ children }) {
 export const useGame = () => useContext(Ctx)
 
 const now = () => sync.now()
+
+// ——— nowa impreza: automatyczny i ręczny reset ———
+const HOUR = 60 * 60 * 1000
+const STALE_IF_EMPTY = 2 * HOUR // nikt nie jest podłączony
+const STALE_ALWAYS = 12 * HOUR // na wypadek „zawieszonych” statusów online
+
+function lastActivity(v) {
+  const players = Object.values(v?.players || {})
+  return Math.max(
+    v?.lastAction?.ts || 0,
+    v?.meme?.ts || 0,
+    ...players.map((p) => p.joinedAt || 0)
+  )
+}
+
+export function isStale(v) {
+  if (!v) return false
+  const players = Object.values(v.players || {})
+  if (!players.length && (v.status === 'lobby' || !v.status)) return false // już czysto
+  const last = lastActivity(v)
+  if (!last) return false
+  const age = now() - last
+  const somebodyHere =
+    players.some((p) => p.online === true) || (v.tvAudio?.state && v.tvAudio.state !== 'off')
+  return age > STALE_ALWAYS || (age > STALE_IF_EMPTY && !somebodyHere)
+}
+
+// pusta poczekalnia bez graczy — ustawienia „ile gramy” zostają
+const fullReset = () => ({
+  ...ROUND_RESET,
+  status: 'lobby',
+  players: null,
+  hostId: null,
+  round: 0,
+  meme: null,
+  handover: null,
+  lastAction: { type: 'fresh', ts: now() },
+})
 
 // ——— pomocnicze ———
 
@@ -351,6 +395,11 @@ function makeActions(get) {
         u['players/' + id + '/solveBlock'] = null
       })
       sync.update(u)
+    },
+
+    // 🧹 nowa impreza: usuwa wszystkich graczy i punkty, pusta poczekalnia
+    resetAll() {
+      sync.update(fullReset())
     },
 
     // ——— gracze ———
