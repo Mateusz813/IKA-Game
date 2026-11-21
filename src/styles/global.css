@@ -37,7 +37,10 @@ body {
   margin: 0;
   font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
   color: #fff;
-  background: var(--bg2);
+  /* bez tła: jednolite tło body malowałoby się NAD gradientem body::before
+     i kończyło na wysokości ekranu (ucięte tło przy przewijaniu);
+     ciemna baza pod spodem jest na html */
+  background: transparent;
   user-select: none;
   -webkit-user-select: none;
 }
