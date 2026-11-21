@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MEMES, memeAvailable, sortedMemes } from '../lib/memes.js'
-import { clearSavedName } from '../lib/hooks.js'
+import { clearSavedName, nextFreeSlot, playerSlot } from '../lib/hooks.js'
 import { TvAudioHint } from './HostConsole.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, fileToAvatar } from './common.jsx'
 
@@ -30,6 +30,7 @@ export default function PhoneHeader({ s, me, myId, actions }) {
             <span className="hdr-me-name">
               {isHost ? '🎩 ' : ''}
               {me.name}
+              {playerSlot() && <span className="hdr-slot">#{playerSlot()}</span>}
             </span>
             <b key={me.score} className="score-bump">{me.score || 0} pkt</b>
           </span>
@@ -136,6 +137,17 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
         <button role="menuitem" className="dd-item dd-item--plain" onClick={onRules}>
           <span className="dd-emoji">📖</span>
           <span className="dd-label">Jak gramy? (zasady)</span>
+        </button>
+        <button
+          role="menuitem"
+          className="dd-item dd-item--plain"
+          onClick={() => {
+            window.open(`/play?as=${nextFreeSlot()}`, '_blank')
+            onClose()
+          }}
+        >
+          <span className="dd-emoji">👥</span>
+          <span className="dd-label">Kolejny gracz na tym telefonie (nowa karta)</span>
         </button>
 
         <div className="dd-sep" />

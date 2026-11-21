@@ -20,7 +20,7 @@ Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
 - plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje),
 - fragment z YouTube: `{ youtube: { id, start, end } }` — na TV wyskakuje oficjalny odtwarzacz YouTube z tym fragmentem i sam się zamyka (zasady YouTube wymagają, żeby odtwarzacz był widoczny).
 
-**Test na jednym komputerze** — w trybie `npm run dev` otwórz kilka kart `/play?as=a`, `/play?as=b`… — każda karta to osobny gracz.
+**Kilku graczy na jednym urządzeniu** — menu pod avatarem → „👥 Kolejny gracz na tym telefonie” otwiera nową kartę (`/play?as=2`, `?as=3`…); każda karta to osobny gracz (numer widać w nagłówku).
 
 ## Uruchomienie lokalne
 

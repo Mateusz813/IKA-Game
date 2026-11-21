@@ -21,11 +21,21 @@ export function useFreshAction(action, ms = 3500) {
   return fresh ? action : null
 }
 
-// Tylko `npm run dev`: /play?as=a, /play?as=b… — kilku graczy w kartach jednej
-// przeglądarki (normalnie wszystkie karty dzieliłyby jedno ID z localStorage)
-const devSlot = () =>
-  import.meta.env.DEV ? new URLSearchParams(window.location.search).get('as') : null
-const slotKey = (k) => (devSlot() ? `${k}-${devSlot()}` : k)
+// Sloty graczy: /play?as=2, /play?as=3… — kilku graczy na jednym urządzeniu,
+// każdy w osobnej karcie (normalnie karty dzieliłyby jedno ID z localStorage)
+export const playerSlot = () => {
+  const v = new URLSearchParams(window.location.search).get('as')
+  return v && /^[a-z0-9]{1,8}$/i.test(v) ? v : null
+}
+const slotKey = (k) => (playerSlot() ? `${k}-${playerSlot()}` : k)
+
+// pierwszy wolny numer slotu na tym urządzeniu (2, 3, …)
+export function nextFreeSlot() {
+  for (let n = 2; n < 20; n++) {
+    if (String(n) !== playerSlot() && !localStorage.getItem(`${NAME_KEY}-${n}`)) return String(n)
+  }
+  return String(Date.now() % 1000)
+}
 
 const ID_KEY = 'ika-player-id'
 const NAME_KEY = 'ika-player-name'
