@@ -4,7 +4,7 @@ import { cleanPhrase } from '../lib/alphabet.js'
 import { layoutBoard } from '../lib/layout.js'
 import Board from './Board.jsx'
 import Keyboard from './Keyboard.jsx'
-import { Avatar, ConfirmButton } from './common.jsx'
+import { Avatar } from './common.jsx'
 
 // Formularz hasła — widzi go wyłącznie osoba, na którą wypadła kolej
 export function PhraseForm({ s, myId, actions }) {
@@ -62,15 +62,41 @@ export function PhraseForm({ s, myId, actions }) {
       >
         🎬 Start — pokaż planszę!
       </button>
-      {others > 0 && (
-        <ConfirmButton
-          className="btn btn--ghost btn--block skip-btn"
-          label="⏭ Nie mam pomysłu — pomiń mnie"
-          confirmLabel="Na pewno? Hasło wymyśli następna osoba"
-          onConfirm={() => actions.passHost()}
+      {others > 0 && <PassHostButton s={s} myId={myId} actions={actions} label="⏭ Nie mam pomysłu — przekaż komuś" />}
+    </section>
+  )
+}
+
+// „Przekaż prowadzenie” — wybór osoby z listy; działa w każdej chwili
+export function PassHostButton({ s, myId, actions, label = '👉 Przekaż prowadzenie komuś innemu', className = 'btn btn--ghost btn--block skip-btn' }) {
+  const [open, setOpen] = useState(false)
+  const players = sortedPlayers(s.players).filter((p) => p.id !== s.hostId)
+  if (!players.length) return null
+  const midRound = s.status === 'playing'
+  return (
+    <>
+      <button className={className} onClick={() => setOpen(true)}>
+        {label}
+      </button>
+      {open && (
+        <PlayerPicker
+          title="Komu przekazać prowadzenie?"
+          subtitle={
+            midRound
+              ? s.hostId === myId
+                ? 'Ta osoba dokończy tę rundę (zobaczy hasło)'
+                : 'Runda zostanie przerwana bez odsłaniania hasła'
+              : 'Ta osoba od razu dostanie formularz hasła'
+          }
+          players={players}
+          onPick={(id) => {
+            actions.passHost(myId, id)
+            setOpen(false)
+          }}
+          onClose={() => setOpen(false)}
         />
       )}
-    </section>
+    </>
   )
 }
 
@@ -120,7 +146,7 @@ export function HostPlaying({ s, myId, actions }) {
                 <div className="admin-player-actions">
                   <button
                     className={`btn ${active ? 'btn--warn' : 'btn--primary'}`}
-                    onClick={() => (active ? actions.revokeTurn() : actions.grantTurn(p.id))}
+                    onClick={() => (active ? actions.revokeTurn(myId) : actions.grantTurn(myId, p.id))}
                   >
                     {active ? '🔒 Cofnij wybór' : '🎤 Niech zgaduje literę'}
                   </button>
@@ -152,13 +178,15 @@ export function HostPlaying({ s, myId, actions }) {
         <Keyboard used={s.used} viewerId={myId} readOnly />
       </section>
 
+      <PassHostButton s={s} myId={myId} actions={actions} />
+
       {picker && (
         <PlayerPicker
           title="Kto odgadnął hasło?"
           subtitle="Ta osoba dostanie +100 pkt, a hasło się odsłoni 🎉"
           players={players}
           onPick={(id) => {
-            actions.awardPhrase(id)
+            actions.awardPhrase(myId, id)
             setPicker(false)
           }}
           onClose={() => setPicker(false)}

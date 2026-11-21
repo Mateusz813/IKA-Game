@@ -1099,6 +1099,125 @@ textarea {
   animation: swk-pulse 1.4s ease-in-out infinite;
 }
 
+/* tryb gry na telefonie */
+.mode-card {
+  background: rgba(46, 230, 210, 0.1);
+  border: 2px solid rgba(46, 230, 210, 0.45);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.mode-card-name { font-weight: 900; font-size: 16px; color: var(--teal); }
+.mode-card-win { font-size: 13px; font-weight: 700; opacity: 0.85; margin-top: 4px; }
+
+.special-controls { border-color: #ff8fab; background: rgba(255, 107, 157, 0.12); }
+.special-controls h2 { text-align: center; }
+
+/* 🎬 start gry na TV */
+.tv-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 5, 25, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fade-in 0.35s;
+}
+
+.tv-intro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.2vh;
+  text-align: center;
+  padding: 4vh 5vw;
+  border: 3px solid var(--gold);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #2a1650, #150b2e);
+  box-shadow: 0 0 70px rgba(255, 211, 77, 0.35);
+  animation: winner-pop 0.6s;
+}
+
+.tv-intro-title {
+  font-size: min(7vw, 10vh);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  background: linear-gradient(180deg, #fff 20%, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tv-intro-mode { font-size: min(3.6vw, 5.2vh); font-weight: 900; }
+.tv-intro-mode b { color: var(--teal); }
+.tv-intro-win { font-size: min(2.6vw, 3.8vh); font-weight: 800; color: var(--gold); }
+.tv-intro-rules { font-size: min(1.8vw, 2.6vh); font-weight: 700; opacity: 0.75; }
+
+.tv-intro-host {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  font-size: min(2.4vw, 3.4vh);
+  font-weight: 800;
+}
+
+/* 💍 filmik „świadkowa” */
+.special-video {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  background: radial-gradient(ellipse at center, #3d1140, #12081f 75%);
+  animation: fade-in 0.4s;
+}
+
+.special-video-title {
+  font-size: min(4vw, 6vh);
+  font-weight: 900;
+  background: linear-gradient(180deg, #fff 20%, #ff8fab 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-align: center;
+}
+
+.special-video-el {
+  width: min(82vw, 128vh);
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  border: 4px solid #ffc2d1;
+  background: #000;
+  box-shadow: 0 0 70px rgba(255, 107, 157, 0.55);
+}
+
+.special-video-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.4vw;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.special-video-bar .btn { font-size: min(1.9vw, 2.8vh); padding: 1.2vh 2vw; }
+
+.special-video-who {
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  font-size: min(2.6vw, 3.8vh);
+  font-weight: 900;
+  color: var(--gold);
+}
+
 /* okienko z fragmentem filmu YouTube (soundboard) — prawy górny róg,
    bez przyciemniania planszy; YouTube wymaga min. 200 px wysokości odtwarzacza */
 .yt-meme {

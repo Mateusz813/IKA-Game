@@ -1,20 +1,22 @@
 # 🎡 WIMP Game — domowe Koło Fortuny
 
-Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **wszyscy grają na swoich telefonach**, a **hasła wymyśla każdy po kolei** — w czasie rzeczywistym.
+Gra imprezowa w stylu Koła Fortuny: **plansza na telewizorze**, **wszyscy grają na swoich telefonach**, a prowadzenie przechodzi z rąk do rąk — w czasie rzeczywistym.
 
 ## Jak się gra
 
-1. **📺 TV** — otwierasz `https://ika-game.vercel.app/tv` (pełny ekran: ⛶). Widać poczekalnię z dużym kodem QR. Kliknij raz w ekran, żeby przeglądarka pozwoliła grać dźwiękom.
-2. **📱 Poczekalnia** — każdy (Ty też) skanuje QR, wpisuje imię i może zrobić sobie zdjęcie-avatar. W poczekalni ustawiacie **„Ile gramy?”**: każdy wymyśla 1 hasło / 2 hasła / do 300 pkt / do 500 pkt.
-3. **▶ Zaczynamy** — kto kliknie, ten wymyśla pierwsze hasło. Hasło widzi **wyłącznie** osoba, która je wpisuje.
-4. **Runda** — prowadzący wskazuje 🎤, kto zgaduje literę; ta osoba klika literę na swoim telefonie.
-   - Trafiona litera → odsłania się na TV, **10 pkt za każde wystąpienie** (3×A = 30 pkt).
-   - Pudło → czerwony ✗ na TV. Po każdej literze prowadzący wybiera kolejną osobę.
-5. **🎯 Znam hasło!** — każdy gracz w dowolnej chwili może wpisać całe hasło (polskie znaki i wielkość liter bez znaczenia). Dobrze → **+100 pkt**. Źle → wpadka na TV i blokada do odsłonięcia kolejnej litery. Gdy ktoś powie hasło na głos, prowadzący przyznaje punkty przyciskiem 🏆.
-6. **🔁 Kolejka** — po każdym haśle prowadzenie przechodzi automatycznie na następną osobę (kto prowadził najmniej razy, potem kolejność dołączenia). Nie masz pomysłu? „Pomiń mnie”.
-7. **🏁 Koniec** — gdy każdy wymyślił swoje hasła albo ktoś dobił do limitu punktów, TV pokazuje podium. „🔄 Zagraj jeszcze raz” wraca do poczekalni.
+Na stronie głównej są 3 opcje: **📺 Telewizor**, **👑 Admin**, **🎮 Gracz**.
 
-**🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady i opcje gry (pominięcie zawieszonego prowadzącego bez zdradzania hasła, koniec gry, nowa gra, wyjście). Nikt nie może usunąć innego gracza.
+1. **📺 TV** — otwierasz `https://ika-game.vercel.app/tv` (pełny ekran: ⛶). Poczekalnia z dużym kodem QR. Kliknij raz w ekran, żeby przeglądarka pozwoliła grać dźwiękom.
+2. **👑 Admin** — gospodarz wybiera „Admin” (bez skanowania QR), wpisuje imię, wybiera **tryb gry**: 5 haseł / 10 haseł (wygrywa najwięcej punktów) albo do 300 / 500 pkt (wygrywa pierwszy, kto dobije) — i klika **▶ Start**. Admin też zbiera punkty.
+3. **🎮 Gracze** — skanują QR z TV i od razu dodają zdjęcie i imię; czekają w poczekalni na start.
+4. **Start** — TV pokazuje tryb gry, warunek zwycięstwa i punktację. Admin wpisuje pierwsze hasło (z kategorią). Hasło widzi **wyłącznie** prowadzący.
+5. **Runda** — prowadzący wskazuje 🎤, kto zgaduje. Ta osoba klika literę (10 pkt za każde wystąpienie) **albo „Zgadnij hasło”** (+100 pkt, pomyłka kończy turę). Hasło powiedziane na głos prowadzący zalicza przyciskiem 🏆. Gdy wszystkie litery są odsłonięte, runda kończy się sama.
+6. **👉 Po rundzie** prowadzący przekazuje prowadzenie — jednym przyciskiem osobie, która zgadła, albo komuś innemu (lub zostaje). Prowadzący może przekazać prowadzenie w każdej chwili, a admin zawsze może zmienić prowadzącego (w trakcie rundy przerywa ją bez zdradzania hasła).
+7. **🏁 Koniec** — TV pokazuje podium; admin klika „🔄 Zagraj jeszcze raz”.
+
+**💍 Niespodzianka** — gdy prowadzi **Iwona** i wpisze hasło „Czy zostaniesz moją świadkową?”, po przyznaniu przez nią punktów na TV leci filmik (`public/video/swiadkowa.mp4`) z przyciskami „Jeszcze raz” / „Zamknij” (na TV i na telefonie Iwony). W tej rundzie nie ma przycisku „Zgadnij hasło” — rundę kończy wyłącznie Iwona. U innych prowadzących to zwykłe hasło.
+
+**🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady, kolejny gracz na tym telefonie; admin ma tam też zmianę prowadzącego, koniec gry i „jeszcze raz”. Nikt nie może usunąć innego gracza. Stara gra (>2 h bez nikogo podłączonego) czyści się sama przy następnym otwarciu.
 
 Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
 - plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje),

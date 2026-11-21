@@ -4,9 +4,10 @@ import {
   useGame,
   sortedPlayers,
   usedInfo,
-  hostQueue,
   roundLabel,
-  settingsLabel,
+  modeName,
+  winCondition,
+  isSpecialRound,
 } from '../lib/store.jsx'
 import { useFreshAction, serverNow } from '../lib/hooks.js'
 import { sync } from '../lib/sync/index.js'
@@ -16,7 +17,6 @@ import {
   sounds,
   initAudio,
   unlockAudio,
-  stopPlease,
   audioState,
   onAudioStateChange,
   preloadSound,
@@ -25,28 +25,22 @@ import Board from '../components/Board.jsx'
 import YouTubeMeme from '../components/YouTubeMeme.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
-// EASTER EGG: to hasło dostaje własną animację i dźwięk 💍
-const SPECIAL_PHRASE = 'CZY ZOSTANIESZ MOJĄ ŚWIADKOWĄ'
-const isSpecialPhrase = (p) =>
-  (p || '')
-    .replace(/[^A-ZĄĆĘŁŃÓŚŹŻ ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim() === SPECIAL_PHRASE
-
 const CELEBRATE = ['win', 'allRevealed']
 
 export default function TV() {
   const { state: s, ready, actions } = useGame()
   useWakeLock()
-  const special = ready && isSpecialPhrase(s.phrase)
+  // 💍 runda-niespodzianka Iwony: zamiast zwykłej animacji leci filmik
+  const special = ready && (isSpecialRound(s) || !!s.specialVideo)
   const celebrate = useFreshAction(
-    CELEBRATE.includes(s.lastAction?.type) ? s.lastAction : null,
-    special ? 12000 : 8000
+    CELEBRATE.includes(s.lastAction?.type) && !s.lastAction?.special ? s.lastAction : null,
+    8000
   )
+  const intro = useFreshAction(s.lastAction?.type === 'gamestart' ? s.lastAction : null, 9000)
   const players = sortedPlayers(s.players)
   // bez graczy zawsze pokazujemy poczekalnię (np. stan po poprzedniej imprezie)
   const phase = ready && !players.length ? 'lobby' : s.status
-  useConfetti(ready && !special && (!!celebrate || phase === 'over'))
+  useConfetti(ready && !s.specialVideo && (!!celebrate || phase === 'over'))
 
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('ika-tv-sound') !== '0')
   const audio = useAudioUnlock()
@@ -55,13 +49,13 @@ export default function TV() {
   useMemeSound(ready ? s.meme : null, soundOn, setYtMeme)
   useReportTvAudio(ready, soundOn ? audio : 'muted', s.tvAudio?.state, actions)
 
-  // gdy hasło-niespodzianka jest w grze, ładujemy kota i nagranie zawczasu
+  // runda-niespodzianka w grze — ładujemy filmik zawczasu, żeby ruszył od razu
   useEffect(() => {
-    if (special) {
-      const img = new Image()
-      img.src = '/icons/shrek-cat.png'
-      preloadSound('/icons/please.m4a')
-    }
+    if (!special) return
+    const v = document.createElement('video')
+    v.preload = 'auto'
+    v.src = '/video/swiadkowa.mp4'
+    v.load()
   }, [special])
 
   if (!ready) return <Spinner />
@@ -73,6 +67,7 @@ export default function TV() {
           🔇 Kliknij tutaj, żeby włączyć dźwięki gry
         </button>
       )}
+      {s.specialVideo && <SpecialVideoOverlay s={s} actions={actions} />}
       {ytMeme && (
         <YouTubeMeme
           key={ytMeme.ts}
@@ -182,12 +177,8 @@ export default function TV() {
         </div>
       )}
 
-      {celebrate &&
-        (special ? (
-          <SwiadkowaOverlay s={s} />
-        ) : (
-          <WinOverlay s={s} winnerId={celebrate.playerId} />
-        ))}
+      {celebrate && <WinOverlay s={s} winnerId={celebrate.playerId} />}
+      {intro && phase === 'entering' && <GameStartOverlay s={s} />}
     </div>
   )
 }
@@ -212,9 +203,11 @@ function LobbyOverlay({ s, players }) {
           <p>Nikt jeszcze nie dołączył — bądź pierwszy!</p>
         )}
         <p className="tv-steps">
-          Gdy wszyscy są w grze, ktoś klika <b>▶ Zaczynamy!</b> na telefonie
+          Gdy wszyscy są w grze, admin
+          {s.adminId && s.players[s.adminId] ? <b> {s.players[s.adminId].name} 👑</b> : null} klika{' '}
+          <b>▶ Start</b>
           <br />
-          Gramy: <b>{settingsLabel(s.settings)}</b>
+          Tryb: <b>{modeName(s.settings)}</b> — {winCondition(s.settings).toLowerCase()}
         </p>
         <p className="tv-idle-install">
           📲 Dodaj do ekranu głównego (iPhone): <b>Udostępnij</b> 📤 → przewiń w dół →{' '}
@@ -228,7 +221,6 @@ function LobbyOverlay({ s, players }) {
 // ——— ktoś wpisuje hasło ———
 function HostWritingOverlay({ s }) {
   const host = s.players[s.hostId]
-  const queue = hostQueue(s.players, s.hostId).slice(0, 4)
   return (
     <div className="tv-idle">
       <div className="tv-idle-inner tv-writing">
@@ -237,9 +229,7 @@ function HostWritingOverlay({ s }) {
         </div>
         <h1>🎩 {host?.name || '…'} wymyśla hasło…</h1>
         <p>Plansza pojawi się za chwilę ✍️</p>
-        {queue.length > 0 && (
-          <p className="tv-queue">Potem prowadzą: {queue.map((p) => p.name).join(' → ')}</p>
-        )}
+        <p className="tv-queue">{roundLabel(s)}</p>
       </div>
     </div>
   )
@@ -260,17 +250,62 @@ function NextHostBar({ s }) {
       )}
       <span className="tv-next-host">
         {' '}
-        · 🎩 teraz hasło wymyśla <b>{next?.name || '…'}</b>
+        · 🎩 <b>{next?.name || '…'}</b> wybiera, kto prowadzi dalej
       </span>
     </div>
   )
 }
 
-// 💍 Specjalna animacja dla hasła „Czy zostaniesz moją świadkową”
-function SwiadkowaOverlay({ s }) {
+// 🎬 Start gry: tryb i kto kiedy wygrywa
+function GameStartOverlay({ s }) {
+  const host = s.players[s.hostId]
+  return (
+    <div className="tv-intro">
+      <div className="tv-intro-card">
+        <div className="tv-intro-title">🎬 ZACZYNAMY!</div>
+        <div className="tv-intro-mode">
+          🏁 Tryb: <b>{modeName(s.settings)}</b>
+        </div>
+        <div className="tv-intro-win">🏆 {winCondition(s.settings)}</div>
+        <div className="tv-intro-rules">
+          🔤 trafiona litera = 10 pkt za każde wystąpienie · 🎯 odgadnięte hasło = 100 pkt
+        </div>
+        {host && (
+          <div className="tv-intro-host">
+            <Avatar player={host} size="min(4vw, 6vh)" /> 🎩 Pierwsze hasło wymyśla:{' '}
+            <b>{host.name}</b>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// 💍 Filmik „Czy zostaniesz moją świadkową?” — tylko gdy Iwona prowadzi to hasło
+// i przyzna punkty. Odtwórz ponownie / zamknij: z TV albo z telefonu Iwony.
+function SpecialVideoOverlay({ s, actions }) {
+  const ref = useRef(null)
+  const [needTap, setNeedTap] = useState(false)
   const winner = s.winnerId ? s.players[s.winnerId] : null
+  const nonce = s.specialVideo?.nonce
+
   useEffect(() => {
-    const end = Date.now() + 10000
+    const v = ref.current
+    if (!v) return
+    v.currentTime = 0
+    v.muted = false
+    v.play()
+      .then(() => setNeedTap(false))
+      .catch(() => {
+        // przeglądarka zablokowała dźwięk — gramy obraz, prosimy o kliknięcie
+        v.muted = true
+        v.play().catch(() => {})
+        setNeedTap(true)
+      })
+  }, [nonce])
+
+  useEffect(() => {
+    const end = Date.now() + 8000
     const t = setInterval(() => {
       confetti({
         particleCount: 10,
@@ -279,44 +314,43 @@ function SwiadkowaOverlay({ s }) {
         gravity: 0.55,
         ticks: 220,
         colors: ['#ff6b9d', '#ff8fab', '#ffc2d1', '#ff4d84', '#ffffff'],
-        origin: { x: Math.random(), y: Math.random() * 0.35 },
+        origin: { x: Math.random(), y: Math.random() * 0.3 },
       })
       if (Date.now() > end) clearInterval(t)
     }, 300)
-    return () => {
-      clearInterval(t)
-      stopPlease()
-    }
-  }, [])
-  const hearts = ['💖', '💍', '💘', '💝', '💖', '🥺', '💖', '💍', '💗', '💖']
+    return () => clearInterval(t)
+  }, [nonce])
+
   return (
-    <div className="swk-overlay">
-      {hearts.map((e, i) => (
-        <span
-          key={i}
-          className="swk-heart"
-          style={{
-            left: `${4 + i * 10}%`,
-            animationDelay: `${i * 0.55}s`,
-            animationDuration: `${4.6 + (i % 4) * 0.9}s`,
-            fontSize: `min(${3 + (i % 3) * 1.4}vw, ${4.5 + (i % 3) * 2}vh)`,
-          }}
-        >
-          {e}
-        </span>
-      ))}
-      <div className="swk-cat-roam">
-        <img src="/icons/shrek-cat.png" alt="" className="swk-cat" />
-      </div>
-      <div className="swk-text">
-        <div className="swk-title">CZY ZOSTANIESZ</div>
-        <div className="swk-title swk-title--2">MOJĄ ŚWIADKOWĄ? 💍</div>
+    <div className="special-video">
+      <div className="special-video-title">💍 Czy zostaniesz moją świadkową? 💍</div>
+      <video ref={ref} className="special-video-el" src="/video/swiadkowa.mp4" playsInline preload="auto" />
+      <div className="special-video-bar">
         {winner && (
-          <div className="swk-name">
-            <Avatar player={winner} size="min(6vw, 9vh)" /> {winner.name}! 🥹
-          </div>
+          <span className="special-video-who">
+            <Avatar player={winner} size="min(3.6vw, 5vh)" /> {winner.name} 🥹
+          </span>
         )}
-        <div className="swk-please">please, please, please… 🥺</div>
+        {needTap && (
+          <button
+            className="btn btn--gold"
+            onClick={() => {
+              const v = ref.current
+              v.muted = false
+              v.currentTime = 0
+              v.play().catch(() => {})
+              setNeedTap(false)
+            }}
+          >
+            🔊 Włącz dźwięk
+          </button>
+        )}
+        <button className="btn btn--primary" onClick={() => actions.replaySpecial()}>
+          🔁 Jeszcze raz
+        </button>
+        <button className="btn" onClick={() => actions.closeSpecial()}>
+          ✖ Zamknij
+        </button>
       </div>
     </div>
   )
@@ -451,8 +485,8 @@ function useTvSounds(lastAction, soundOn, special = false) {
     lastTs.current = a.ts
     if (serverNow() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
     if (!soundOn) return
-    if (special && CELEBRATE.includes(a.type)) sounds.please()
-    else if (a.type === 'hit') sounds.hit(a.count)
+    if (special && CELEBRATE.includes(a.type)) return // filmik ma własny dźwięk
+    if (a.type === 'hit') sounds.hit(a.count)
     else if (a.type === 'miss' || a.type === 'wrongSolve') sounds.miss()
     else if (CELEBRATE.includes(a.type) || a.type === 'gameover') sounds.win()
   }, [lastAction, soundOn, special])
@@ -495,15 +529,10 @@ function TVOver({ s, players, headerRight, actions }) {
           </div>
         )}
         <p className="tv-over-hint">
-          Brawa dla wszystkich! 👏 Gracie dalej? Kliknijcie <b>🔄 Zagraj jeszcze raz</b> na
-          telefonie albo tutaj:
+          Brawa dla wszystkich! 👏 Gracie dalej? Admin
+          {s.players[s.adminId] ? <b> {s.players[s.adminId].name} 👑</b> : null} klika{' '}
+          <b>🔄 Zagraj jeszcze raz</b> na telefonie.
         </p>
-        <ConfirmButton
-          className="btn btn--green"
-          label="🔄 Nowa gra"
-          confirmLabel="Tak, wracamy do poczekalni ▶"
-          onConfirm={() => actions.newGame()}
-        />
       </div>
     </div>
   )

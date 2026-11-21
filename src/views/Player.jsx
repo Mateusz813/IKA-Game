@@ -1,16 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { useGame, sortedPlayers, hostQueue, roundLabel, settingsLabel } from '../lib/store.jsx'
+import { useSearchParams } from 'react-router-dom'
+import {
+  useGame,
+  sortedPlayers,
+  roundLabel,
+  modeName,
+  modeKey,
+  winCondition,
+  isSpecialRound,
+  isOnline,
+} from '../lib/store.jsx'
 import { useFreshAction, getPlayerId, getSavedName, saveName } from '../lib/hooks.js'
 import Board from '../components/Board.jsx'
 import Keyboard from '../components/Keyboard.jsx'
 import PhoneHeader, { HowToPlay } from '../components/PhoneHeader.jsx'
-import { PhraseForm, HostPlaying, TvAudioHint } from '../components/HostConsole.jsx'
+import { PhraseForm, HostPlaying, TvAudioHint, PlayerPicker } from '../components/HostConsole.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, Spinner, fileToAvatar } from '../components/common.jsx'
 
 export default function Player() {
   const { state, ready, actions } = useGame()
   const myId = getPlayerId()
   const autoJoined = useRef(false)
+  const [params, setParams] = useSearchParams()
+  const wantAdmin = params.get('admin') === '1'
 
   // Automatyczny powrót do gry po odświeżeniu (raz na wejście)
   useEffect(() => {
@@ -20,12 +32,23 @@ export default function Player() {
     if (saved) actions.joinPlayer(myId, state.players[myId]?.name || saved)
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // wejście z kafelka „Admin”: po dołączeniu zostań adminem (jeśli wolne)
+  const joined = !!state.players[myId]
+  useEffect(() => {
+    if (!ready || !wantAdmin || !joined) return
+    actions.claimAdmin(myId)
+    const next = new URLSearchParams(params)
+    next.delete('admin')
+    setParams(next, { replace: true })
+  }, [ready, wantAdmin, joined]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!ready) return <Spinner />
   const me = state.players[myId]
   if (!me)
     return (
       <JoinScreen
         s={state}
+        asAdmin={wantAdmin}
         onJoin={(name, photo) => {
           saveName(name)
           actions.joinPlayer(myId, name, photo)
@@ -46,33 +69,41 @@ function PhoneShell({ s, me, myId, actions }) {
     ) : (
       <PlayerPlaying s={s} me={me} myId={myId} actions={actions} />
     )
-  else
-    body = (
+  else if (s.status === 'finished')
+    body = isHost ? (
+      <HandoverPanel s={s} myId={myId} actions={actions} />
+    ) : (
       <>
-        {s.status === 'finished' && <RoundResult s={s} myId={myId} />}
-        {isHost ? (
-          <>
-            <div className="status-strip status-strip--turn">
-              🎩 Twoja kolej — wymyśl hasło dla reszty!
-            </div>
-            <PhraseForm s={s} myId={myId} actions={actions} />
-          </>
-        ) : (
-          <WaitingForPhrase s={s} myId={myId} />
-        )}
+        <RoundResult s={s} myId={myId} />
+        <div className="status-strip">
+          ⏳ {s.players[s.hostId]?.name || 'Prowadzący'} wybiera, kto prowadzi następne hasło…
+        </div>
+        <Leaderboard s={s} myId={myId} />
       </>
+    )
+  else
+    body = isHost ? (
+      <>
+        <div className="status-strip status-strip--turn">
+          🎩 Twoja kolej — wpisz kategorię i hasło!
+        </div>
+        <PhraseForm s={s} myId={myId} actions={actions} />
+      </>
+    ) : (
+      <WaitingForPhrase s={s} myId={myId} />
     )
 
   return (
     <div className="page player">
       <PhoneHeader s={s} me={me} myId={myId} actions={actions} />
+      {s.specialVideo && isHost && <SpecialControls actions={actions} />}
       {body}
     </div>
   )
 }
 
 // ——— dołączanie ———
-function JoinScreen({ s, onJoin }) {
+function JoinScreen({ s, onJoin, asAdmin }) {
   const [name, setName] = useState(getSavedName())
   const [photo, setPhoto] = useState(null)
   const fileRef = useRef(null)
@@ -82,7 +113,11 @@ function JoinScreen({ s, onJoin }) {
     <div className="home">
       <Logo />
       <p className="home-sub">
-        {count ? `Dołącz do gry — w środku już ${count} ${count === 1 ? 'osoba' : 'osoby'} 🎮` : 'Dołącz do gry 🎮'}
+        {asAdmin
+          ? 'Dołączasz jako admin 👑 — wybierzesz tryb gry i wpiszesz pierwsze hasło'
+          : count
+            ? `Dołącz do gry — w środku już ${count} ${count === 1 ? 'osoba' : count < 5 ? 'osoby' : 'osób'} 🎮`
+            : 'Dołącz do gry 🎮'}
       </p>
       <form
         className="join-form"
@@ -121,7 +156,7 @@ function JoinScreen({ s, onJoin }) {
           placeholder="Twoje imię…"
         />
         <button className="btn btn--primary btn--big" disabled={!ok}>
-          Dołącz do gry
+          {asAdmin ? '👑 Dołącz jako admin' : 'Dołącz do gry'}
         </button>
       </form>
       <InstallHint />
@@ -154,20 +189,34 @@ function InstallHint() {
 
 // ——— poczekalnia ———
 const OPTIONS = [
-  { key: 'r1', label: 'Każdy wymyśla 1 hasło', hint: 'krótko', settings: { mode: 'rounds', rounds: 1 } },
-  { key: 'r2', label: 'Każdy wymyśla 2 hasła', hint: 'dłużej', settings: { mode: 'rounds', rounds: 2 } },
-  { key: 'p300', label: 'Gramy do 300 pkt', hint: 'kto pierwszy', settings: { mode: 'points', target: 300 } },
-  { key: 'p500', label: 'Gramy do 500 pkt', hint: 'długa gra', settings: { mode: 'points', target: 500 } },
+  { key: 'r5', label: '5 haseł', hint: 'krótka gra' },
+  { key: 'r10', label: '10 haseł', hint: 'dłuższa gra' },
+  { key: 'p300', label: 'Do 300 pkt', hint: 'kto pierwszy' },
+  { key: 'p500', label: 'Do 500 pkt', hint: 'długa gra' },
 ]
-const optionKey = (st) => (st.mode === 'points' ? `p${st.target}` : `r${st.rounds}`)
+
+function ModeCard({ s }) {
+  return (
+    <div className="mode-card">
+      <div className="mode-card-name">🏁 Tryb: {modeName(s.settings)}</div>
+      <div className="mode-card-win">{winCondition(s.settings)}</div>
+    </div>
+  )
+}
 
 function Lobby({ s, myId, actions }) {
   const players = sortedPlayers(s.players).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
-  const current = optionKey(s.settings)
+  const iAmAdmin = s.adminId === myId
+  const admin = s.players[s.adminId]
+  const current = modeKey(s.settings)
   return (
     <>
       <div className="status-strip status-strip--turn">
-        👋 Jesteś w grze! Czekamy, aż dołączy cała ekipa.
+        {iAmAdmin
+          ? '👑 Jesteś adminem — wybierz tryb i wystartuj, gdy wszyscy dołączą'
+          : admin
+            ? `👋 Jesteś w grze! Czekamy, aż ${admin.name} wystartuje.`
+            : '👋 Jesteś w grze! Czekamy na admina.'}
       </div>
 
       <section className="panel">
@@ -176,44 +225,56 @@ function Lobby({ s, myId, actions }) {
           {players.map((p) => (
             <span key={p.id} className={`lobby-player ${p.id === myId ? 'lobby-player--me' : ''}`}>
               <Avatar player={p} size={26} /> {p.name}
+              {p.id === s.adminId ? ' 👑' : ''}
             </span>
           ))}
         </div>
         <p className="hint">Reszta skanuje kod QR z telewizora.</p>
       </section>
 
-      <section className="panel">
-        <h2>⏱ Ile gramy?</h2>
-        <div className="opt-grid">
-          {OPTIONS.map((o) => (
-            <button
-              key={o.key}
-              className={`opt ${current === o.key ? 'opt--on' : ''}`}
-              onClick={() => actions.setSettings(o.settings)}
-            >
-              <span className="opt-label">{o.label}</span>
-              <span className="opt-hint">{o.hint}</span>
-            </button>
-          ))}
-        </div>
-      </section>
+      {iAmAdmin ? (
+        <>
+          <section className="panel">
+            <h2>⏱ Tryb gry</h2>
+            <div className="opt-grid">
+              {OPTIONS.map((o) => (
+                <button
+                  key={o.key}
+                  className={`opt ${current === o.key ? 'opt--on' : ''}`}
+                  onClick={() => actions.setSettings(myId, o.key)}
+                >
+                  <span className="opt-label">{o.label}</span>
+                  <span className="opt-hint">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+            <p className="hint">{winCondition(s.settings)}.</p>
+          </section>
+          <section className="panel">
+            <TvAudioHint state={s.tvAudio?.state} />
+            <ConfirmButton
+              className="btn btn--green btn--big btn--block"
+              label="▶ Start — wymyślam pierwsze hasło"
+              confirmLabel={`Start! Tryb: ${modeName(s.settings)} ▶`}
+              onConfirm={() => actions.startGame(myId)}
+            />
+          </section>
+        </>
+      ) : (
+        <>
+          <ModeCard s={s} />
+          {(!admin || !isOnline(admin)) && (
+            <ConfirmButton
+              className="btn btn--block"
+              label="👑 Nikt nie jest adminem — zostań nim"
+              confirmLabel="Tak, będę adminem 👑"
+              onConfirm={() => actions.claimAdmin(myId)}
+            />
+          )}
+        </>
+      )}
 
       <HowToPlay />
-
-      <section className="panel">
-        <TvAudioHint state={s.tvAudio?.state} />
-        <ConfirmButton
-          className="btn btn--green btn--big btn--block"
-          label="▶ Zaczynamy! (wymyślę pierwsze hasło)"
-          confirmLabel={`Start! Gramy: ${settingsLabel(s.settings)} ▶`}
-          onConfirm={() => actions.startGame(myId)}
-        />
-        {players.length < 2 && (
-          <p className="hint" style={{ textAlign: 'center' }}>
-            Najlepiej grać w 3+ osoby — ale możesz wystartować choćby teraz.
-          </p>
-        )}
-      </section>
     </>
   )
 }
@@ -221,27 +282,26 @@ function Lobby({ s, myId, actions }) {
 // ——— czekanie na hasło ———
 function WaitingForPhrase({ s, myId }) {
   const host = s.players[s.hostId]
-  const queue = hostQueue(s.players, s.hostId).slice(0, 4)
+  const fresh = useFreshAction(s.lastAction?.type === 'gamestart' ? s.lastAction : null, 15000)
   return (
     <>
+      {fresh && (
+        <div className="round-result">
+          🎬 Zaczynamy! <ModeCard s={s} />
+        </div>
+      )}
       <section className="panel waiting">
         <Avatar player={host} size={64} />
-        <h2>
-          🎩 {host?.name || '…'} wymyśla hasło{s.status === 'finished' ? ' na następną rundę' : ''}…
-        </h2>
+        <h2>🎩 {host?.name || '…'} wymyśla hasło…</h2>
         <p className="hint">Za chwilę na telewizorze pojawi się plansza. Przygotuj się!</p>
-        {queue.length > 0 && (
-          <p className="queue">
-            Potem prowadzą: {queue.map((p) => (p.id === myId ? 'TY' : p.name)).join(' → ')}
-          </p>
-        )}
+        <span className="chip chip--muted">{roundLabel(s)}</span>
       </section>
       <Leaderboard s={s} myId={myId} />
     </>
   )
 }
 
-// Wynik zakończonej rundy (pokazywany nad formularzem / czekaniem)
+// Wynik zakończonej rundy
 function RoundResult({ s, myId }) {
   const winner = s.winnerId ? s.players[s.winnerId] : null
   const won = s.winnerId === myId
@@ -261,12 +321,77 @@ function RoundResult({ s, myId }) {
   )
 }
 
+// ——— po rundzie: prowadzący przekazuje prowadzenie ———
+function HandoverPanel({ s, myId, actions }) {
+  const [picking, setPicking] = useState(false)
+  const winner =
+    s.winnerId && s.winnerId !== myId && s.players[s.winnerId]
+      ? { id: s.winnerId, ...s.players[s.winnerId] }
+      : null
+  const others = sortedPlayers(s.players).filter((p) => p.id !== myId)
+  return (
+    <>
+      <RoundResult s={s} myId={myId} />
+      <section className="panel handover">
+        <h2>👉 Kto wymyśla następne hasło?</h2>
+        {winner && (
+          <button
+            className="btn btn--green btn--big btn--block"
+            onClick={() => actions.passHost(myId, winner.id)}
+          >
+            <Avatar player={winner} size={26} /> Przekaż: {winner.name} 🏆
+          </button>
+        )}
+        {others.length > 0 && (
+          <button className="btn btn--block" onClick={() => setPicking(true)}>
+            👥 {winner ? 'Wybierz kogoś innego' : 'Wybierz osobę'}
+          </button>
+        )}
+        <button className="btn btn--ghost btn--block" onClick={() => actions.keepHosting(myId)}>
+          ✍️ Wymyślę kolejne hasło sam(a)
+        </button>
+      </section>
+      <Leaderboard s={s} myId={myId} />
+      {picking && (
+        <PlayerPicker
+          title="Kto wymyśla następne hasło?"
+          subtitle="Ta osoba od razu dostanie formularz hasła"
+          players={others}
+          onPick={(id) => {
+            actions.passHost(myId, id)
+            setPicking(false)
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// 💍 sterowanie filmikiem na TV (telefon Iwony)
+function SpecialControls({ actions }) {
+  return (
+    <section className="panel special-controls">
+      <h2>💍 Filmik leci na telewizorze</h2>
+      <div className="handover-choice">
+        <button className="btn btn--primary btn--big" onClick={() => actions.replaySpecial()}>
+          🔁 Jeszcze raz
+        </button>
+        <button className="btn btn--big" onClick={() => actions.closeSpecial()}>
+          ✖ Zamknij
+        </button>
+      </div>
+    </section>
+  )
+}
+
 // ——— runda (zwykły gracz) ———
 function PlayerPlaying({ s, me, myId, actions }) {
   const [solving, setSolving] = useState(false)
   const myTurn = s.activePlayerId === myId
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
   const host = s.players[s.hostId]
+  const special = isSpecialRound(s)
   const feedback = useFreshAction(s.lastAction, 2600)
   const myFeedback =
     feedback && feedback.playerId === myId && ['hit', 'miss'].includes(feedback.type)
@@ -288,7 +413,9 @@ function PlayerPlaying({ s, me, myId, actions }) {
     <>
       {myTurn ? (
         <div className="status-strip status-strip--turn">
-          🎤 TWOJA KOLEJ — kliknij literę albo 🎯 zgadnij całe hasło!
+          {special
+            ? '🎤 TWOJA KOLEJ — kliknij literę! Znasz hasło? Powiedz je na głos 😉'
+            : '🎤 TWOJA KOLEJ — kliknij literę albo 🎯 zgadnij całe hasło!'}
         </div>
       ) : (
         <div className="status-strip">
@@ -307,17 +434,19 @@ function PlayerPlaying({ s, me, myId, actions }) {
 
       <Board phrase={s.phrase} revealed={s.revealed} lastAction={s.lastAction} size="mini" />
 
-      <button
-        className="btn btn--gold btn--big btn--block solve-btn"
-        disabled={blocked || !myTurn}
-        onClick={() => setSolving(true)}
-      >
-        {blocked
-          ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery'
-          : myTurn
-            ? '🎯 Znam hasło! (zamiast litery)'
-            : '🎯 Znam hasło! — gdy dostaniesz 🎤'}
-      </button>
+      {!special && (
+        <button
+          className="btn btn--gold btn--big btn--block solve-btn"
+          disabled={blocked || !myTurn}
+          onClick={() => setSolving(true)}
+        >
+          {blocked
+            ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery'
+            : myTurn
+              ? '🎯 Zgadnij hasło (zamiast litery)'
+              : '🎯 Zgadnij hasło — gdy dostaniesz 🎤'}
+        </button>
+      )}
 
       <div className="player-kbd">
         {myFeedback && (
@@ -347,10 +476,7 @@ function PlayerPlaying({ s, me, myId, actions }) {
       <Leaderboard s={s} myId={myId} />
 
       {solving && (
-        <SolveModal
-          onClose={() => setSolving(false)}
-          onSolve={(text) => actions.solve(myId, text)}
-        />
+        <SolveModal onClose={() => setSolving(false)} onSolve={(text) => actions.solve(myId, text)} />
       )}
     </>
   )
@@ -411,13 +537,14 @@ function OverScreen({ s, myId, actions }) {
   const myRank = players.findIndex((p) => p.id === myId) + 1
   const champ = players[0]?.score > 0 ? players[0] : null
   const me = s.players[myId]
+  const iAmAdmin = s.adminId === myId
   // dołączył(a) już po zakończeniu poprzedniej gry
   const latecomer = s.lastAction?.ts && (me?.joinedAt || 0) > s.lastAction.ts
   return (
     <>
       {latecomer ? (
         <div className="status-strip status-strip--turn">
-          👋 Poprzednia gra właśnie się skończyła — zacznijcie nową poniżej!
+          👋 Poprzednia gra właśnie się skończyła — za chwilę nowa!
         </div>
       ) : (
         <div className="status-strip status-strip--win">
@@ -429,20 +556,24 @@ function OverScreen({ s, myId, actions }) {
             : ''}
         </div>
       )}
-      {!latecomer && (
-        <p className="hint" style={{ textAlign: 'center' }}>Podium świeci się na telewizorze 📺</p>
-      )}
+      {!latecomer && <p className="hint" style={{ textAlign: 'center' }}>Podium świeci się na telewizorze 📺</p>}
       <Leaderboard s={s} myId={myId} />
-      <section className="panel">
-        <h2>Gramy jeszcze raz?</h2>
-        <p className="hint">Wszyscy wracają do poczekalni, punkty od zera.</p>
-        <ConfirmButton
-          className="btn btn--green btn--big btn--block"
-          label="🔄 Zagraj jeszcze raz"
-          confirmLabel="Tak, nowa gra! ▶"
-          onConfirm={() => actions.newGame()}
-        />
-      </section>
+      {iAmAdmin ? (
+        <section className="panel">
+          <h2>Gramy jeszcze raz?</h2>
+          <p className="hint">Wszyscy wracają do poczekalni, punkty od zera.</p>
+          <ConfirmButton
+            className="btn btn--green btn--big btn--block"
+            label="🔄 Zagraj jeszcze raz"
+            confirmLabel="Tak, nowa gra! ▶"
+            onConfirm={() => actions.newGame(myId)}
+          />
+        </section>
+      ) : (
+        <p className="hint" style={{ textAlign: 'center' }}>
+          ⏳ Admin {s.players[s.adminId]?.name || ''} może zacząć nową grę.
+        </p>
+      )}
     </>
   )
 }
@@ -465,6 +596,7 @@ function Leaderboard({ s, myId }) {
           <span className="lb-name">
             {p.id === s.hostId && s.status !== 'lobby' && s.status !== 'over' ? '🎩 ' : ''}
             {p.name}
+            {p.id === s.adminId ? ' 👑' : ''}
             {p.id === myId ? ' (Ty)' : ''}
           </span>
           <span className="lb-score">{p.score || 0}</span>

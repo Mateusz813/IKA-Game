@@ -6,21 +6,23 @@ export default function Home() {
     <div className="home">
       <Logo />
       <p className="home-sub">Domowe Koło Fortuny 🎡</p>
-      <ol className="home-steps">
-        <li>📺 Otwórz <b>Telewizor</b> na dużym ekranie</li>
-        <li>📱 Każdy (Ty też!) skanuje kod QR i wpisuje imię</li>
-        <li>▶ Ktoś klika <b>Zaczynamy</b> — i gramy!</li>
-      </ol>
       <div className="home-cards">
         <Link to="/tv" className="home-card">
           <span className="home-card-emoji">📺</span>
           <span className="home-card-title">Telewizor</span>
-          <span className="home-card-desc">Plansza i kod QR dla wszystkich</span>
+          <span className="home-card-desc">Plansza i kod QR — odpal na dużym ekranie</span>
         </Link>
-        <Link to="/play" className="home-card home-card--main">
+        <Link to="/play?admin=1" className="home-card home-card--main">
+          <span className="home-card-emoji">👑</span>
+          <span className="home-card-title">Admin</span>
+          <span className="home-card-desc">
+            Wybierasz tryb gry, startujesz i wpisujesz pierwsze hasło (punkty też zbierasz!)
+          </span>
+        </Link>
+        <Link to="/play" className="home-card">
           <span className="home-card-emoji">🎮</span>
-          <span className="home-card-title">Graj na telefonie</span>
-          <span className="home-card-desc">Zgadujesz litery, a gdy przyjdzie Twoja kolej — wymyślasz hasło 🎩</span>
+          <span className="home-card-title">Gracz</span>
+          <span className="home-card-desc">Dołącz, zgaduj litery i hasła — albo zeskanuj QR z TV</span>
         </Link>
       </div>
       <ModeBadge />

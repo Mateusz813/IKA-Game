@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { MEMES, memeAvailable, sortedMemes } from '../lib/memes.js'
 import { clearSavedName, nextFreeSlot, playerSlot } from '../lib/hooks.js'
-import { TvAudioHint } from './HostConsole.jsx'
+import { TvAudioHint, PassHostButton } from './HostConsole.jsx'
+import { isOnline } from '../lib/store.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, fileToAvatar } from './common.jsx'
 
 // Górny pasek telefonu: logo + „ja” (avatar, imię, punkty). Dotknięcie „ja”
@@ -84,7 +85,9 @@ export default function PhoneHeader({ s, me, myId, actions }) {
 function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
   const inGame = ['entering', 'finished', 'playing'].includes(s.status)
   const hostName = s.hostId ? s.players[s.hostId]?.name : null
-  const iAmHost = s.hostId === myId
+  const iAmAdmin = s.adminId === myId
+  const admin = s.players[s.adminId]
+  const adminMissing = !admin || !isOnline(admin)
   const [list, setList] = useState(() => sortedMemes(MEMES.filter((m) => !m.optional)))
   const [sent, setSent] = useState(null)
   const lastAt = useRef(0)
@@ -152,43 +155,44 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
 
         <div className="dd-sep" />
         <div className="dd-title">⚙️ Opcje gry</div>
-        {inGame && hostName && (
-          <ConfirmButton
+        {iAmAdmin && inGame && hostName && (
+          <PassHostButton
+            s={s}
+            myId={myId}
+            actions={actions}
             className="dd-item dd-item--plain"
-            label={
-              s.status === 'playing'
-                ? iAmHost
-                  ? '⏭ Przerwij moją rundę'
-                  : `⏭ ${hostName} się zawiesił(a)? Przerwij rundę`
-                : iAmHost
-                  ? '⏭ Pomiń mnie — niech wymyśli ktoś inny'
-                  : `⏭ ${hostName} nie wpisuje hasła? Pomiń`
-            }
-            confirmLabel="Na pewno? Hasło wymyśli następna osoba"
-            onConfirm={() => {
-              actions.passHost()
-              onClose()
-            }}
+            label={`👑 Zmień prowadzącego (teraz: ${hostName})`}
           />
         )}
-        {inGame && (
+        {iAmAdmin && inGame && (
           <ConfirmButton
             className="dd-item dd-item--plain"
             label="🏁 Zakończ grę teraz (podium)"
             confirmLabel="Na pewno kończymy?"
             onConfirm={() => {
-              actions.endNow()
+              actions.endNow(myId)
               onClose()
             }}
           />
         )}
-        {s.status !== 'lobby' && (
+        {iAmAdmin && s.status !== 'lobby' && (
           <ConfirmButton
             className="dd-item dd-item--plain"
             label="🔄 Jeszcze raz (ci sami gracze, punkty 0)"
             confirmLabel="Na pewno? Wszyscy wracają do poczekalni"
             onConfirm={() => {
-              actions.newGame()
+              actions.newGame(myId)
+              onClose()
+            }}
+          />
+        )}
+        {!iAmAdmin && adminMissing && (
+          <ConfirmButton
+            className="dd-item dd-item--plain"
+            label="👑 Admina nie ma — przejmij admina"
+            confirmLabel="Tak, będę adminem 👑"
+            onConfirm={() => {
+              actions.claimAdmin(myId)
               onClose()
             }}
           />
@@ -212,14 +216,14 @@ export function HowToPlay({ compact = false }) {
     <div className={`rules ${compact ? 'rules--compact' : ''}`}>
       {!compact && <h2>📖 Jak gramy?</h2>}
       <ol>
-        <li>🎩 Prowadzący wymyśla hasło i wskazuje 🎤, kto zgaduje literę.</li>
+        <li>👑 Admin wybiera tryb gry, startuje i wpisuje pierwsze hasło.</li>
+        <li>🎩 Prowadzący wpisuje kategorię i hasło, a potem wskazuje 🎤, kto zgaduje literę.</li>
         <li>🔤 Trafiona litera = <b>10 pkt</b> za każde jej wystąpienie.</li>
         <li>
-          🎯 Masz turę 🎤 i znasz całe hasło? Zamiast litery kliknij <b>„Znam hasło!”</b> i
-          wpisz je — <b>+100 pkt</b>. Pomyłka kończy turę. Hasło powiedziane na głos
-          prowadzący może zaliczyć sam.
+          🎯 Masz 🎤 i znasz hasło? Zamiast litery kliknij <b>„Zgadnij hasło”</b> — <b>+100 pkt</b>.
+          Pomyłka kończy turę. Hasło powiedziane na głos prowadzący zalicza sam.
         </li>
-        <li>🔁 Po każdym haśle prowadzi następna osoba — każdy po kolei.</li>
+        <li>👉 Po każdym haśle prowadzący przekazuje prowadzenie — zwykle osobie, która zgadła.</li>
         <li>🔊 Dotknij swojego avatara u góry, żeby puścić śmieszny dźwięk na TV.</li>
       </ol>
     </div>

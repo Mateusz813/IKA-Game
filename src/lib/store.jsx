@@ -9,14 +9,24 @@ import {
 import { sync } from './sync/index.js'
 import { cleanPhrase, countLetter, phraseLetters } from './alphabet.js'
 
-// Przebieg gry:
-//   lobby    — poczekalnia: dołączanie, ustawienia „ile gramy”, ▶ Zaczynamy
-//   entering — hostId wymyśla hasło (tylko on widzi formularz)
-//   playing  — runda: hostId wyznacza 🎤, gracze klikają litery / 🎯 zgadują
-//   finished — hasło odgadnięte; hostId to JUŻ NASTĘPNA osoba z kolejki,
-//              która wpisuje kolejne hasło, a TV świętuje zwycięzcę
-//   over     — podium; „Zagraj jeszcze raz” wraca do lobby
-export const DEFAULT_SETTINGS = { mode: 'rounds', rounds: 1, target: 300 }
+// Role:
+//   adminId — gospodarz gry (wybrał „Admin” na starcie): ustawia tryb,
+//             startuje, w każdej chwili może zmienić prowadzącego
+//   hostId  — prowadzący: wpisuje hasło, wyznacza 🎤, po rundzie przekazuje
+//             prowadzenie (domyślnie zwycięzcy)
+// Przebieg:
+//   lobby    — poczekalnia; admin wybiera tryb i klika Start
+//   entering — hostId wpisuje kategorię i hasło
+//   playing  — runda
+//   finished — hasło odgadnięte; hostId decyduje, komu przekazać prowadzenie
+//   over     — podium
+export const MODES = {
+  r5: { mode: 'rounds', rounds: 5 },
+  r10: { mode: 'rounds', rounds: 10 },
+  p300: { mode: 'points', target: 300 },
+  p500: { mode: 'points', target: 500 },
+}
+export const DEFAULT_SETTINGS = MODES.r5
 
 const STATUSES = ['lobby', 'entering', 'playing', 'finished', 'over']
 
@@ -27,7 +37,8 @@ const EMPTY = {
   category: '',
   revealed: {}, // litera -> true
   used: {}, // litera -> { r: 'hit'|'miss', by }
-  players: {}, // id -> { name, score, joinedAt, online, photo, hosted, solveBlock }
+  players: {}, // id -> { name, score, joinedAt, online, photo, solveBlock }
+  adminId: null,
   hostId: null,
   activePlayerId: null,
   winnerId: null,
@@ -35,6 +46,7 @@ const EMPTY = {
   round: 0,
   meme: null, // { id, by, ts } — soundboard, dźwięk gra na TV
   tvAudio: null, // { state: on|locked|muted|off }
+  specialVideo: null, // { nonce } — filmik „świadkowa” otwarty na TV
 }
 
 // RTDB usuwa puste obiekty i nulle — uzupełniamy brakujące pola.
@@ -50,6 +62,8 @@ function normalize(v) {
   // stany z poprzednich wersji gry
   if (s.status === 'idle') s.status = s.hostId ? 'entering' : 'lobby'
   if (!STATUSES.includes(s.status)) s.status = 'lobby'
+  if (s.settings.mode === 'rounds' && !(s.settings.rounds >= 3)) s.settings = DEFAULT_SETTINGS
+  if (s.adminId && !s.players[s.adminId]) s.adminId = null
   return s
 }
 
@@ -92,18 +106,14 @@ export const useGame = () => useContext(Ctx)
 
 const now = () => sync.now()
 
-// ——— nowa impreza: automatyczny i ręczny reset ———
+// ——— automatyczny reset starej gry ———
 const HOUR = 60 * 60 * 1000
 const STALE_IF_EMPTY = 2 * HOUR // nikt nie jest podłączony
 const STALE_ALWAYS = 12 * HOUR // na wypadek „zawieszonych” statusów online
 
 function lastActivity(v) {
   const players = Object.values(v?.players || {})
-  return Math.max(
-    v?.lastAction?.ts || 0,
-    v?.meme?.ts || 0,
-    ...players.map((p) => p.joinedAt || 0)
-  )
+  return Math.max(v?.lastAction?.ts || 0, v?.meme?.ts || 0, ...players.map((p) => p.joinedAt || 0))
 }
 
 export function isStale(v) {
@@ -118,11 +128,23 @@ export function isStale(v) {
   return age > STALE_ALWAYS || (age > STALE_IF_EMPTY && !somebodyHere)
 }
 
-// pusta poczekalnia bez graczy — ustawienia „ile gramy” zostają
+// pola czyszczone przy każdej nowej rundzie/powrocie do lobby
+const ROUND_RESET = {
+  phrase: '',
+  category: '',
+  revealed: null,
+  used: null,
+  activePlayerId: null,
+  winnerId: null,
+  specialVideo: null,
+}
+
+// pusta poczekalnia bez graczy — ustawienia trybu zostają
 const fullReset = () => ({
   ...ROUND_RESET,
   status: 'lobby',
   players: null,
+  adminId: null,
   hostId: null,
   round: 0,
   meme: null,
@@ -134,44 +156,22 @@ const fullReset = () => ({
 
 export const isOnline = (p) => p?.online !== false
 
-// Kolejka prowadzących: najpierw ci, którzy prowadzili najmniej razy,
-// przy remisie — kolejność dołączenia. Osoby offline pomijamy.
-export function hostQueue(players, excludeId = null) {
-  const list = Object.entries(players)
-    .map(([id, p]) => ({ id, ...p }))
-    .filter((p) => p.id !== excludeId)
-  const online = list.filter(isOnline)
-  return (online.length ? online : list).sort(
-    (a, b) => (a.hosted || 0) - (b.hosted || 0) || (a.joinedAt || 0) - (b.joinedAt || 0)
-  )
-}
+export const modeKey = (st) => (st.mode === 'points' ? `p${st.target}` : `r${st.rounds}`)
 
-const nextHost = (players, excludeId) => hostQueue(players, excludeId)[0]?.id || excludeId
-
-// Czy po tej rundzie kończymy grę
-function gameIsOver(settings, players) {
-  const ps = Object.values(players)
-  if (!ps.length) return false
-  if (settings.mode === 'points')
-    return ps.some((p) => (p.score || 0) >= settings.target)
-  const online = ps.filter(isOnline)
-  return (online.length ? online : ps).every((p) => (p.hosted || 0) >= settings.rounds)
-}
-
-// „Hasło 3 z 8” albo „Gramy do 300 pkt”
-export function roundLabel(s) {
-  const n = Math.max(1, Object.values(s.players).filter(isOnline).length)
-  const current = s.status === 'playing' ? s.round : s.round + 1
-  if (s.settings.mode === 'points') return `Gramy do ${s.settings.target} pkt`
-  return `Hasło ${Math.min(current, s.settings.rounds * n)} z ${s.settings.rounds * n}`
-}
-
-export const settingsLabel = (st) =>
+// krótka nazwa trybu i warunek zwycięstwa — pokazywane na TV i telefonach
+export const modeName = (st) =>
+  st.mode === 'points' ? `Do ${st.target} pkt` : `${st.rounds} haseł`
+export const winCondition = (st) =>
   st.mode === 'points'
-    ? `do ${st.target} pkt`
-    : st.rounds === 1
-      ? 'każdy wymyśla 1 hasło'
-      : `każdy wymyśla ${st.rounds} hasła`
+    ? `Wygrywa pierwsza osoba, która zdobędzie ${st.target} pkt`
+    : `Po ${st.rounds} hasłach wygrywa osoba z największą liczbą punktów`
+
+// „Hasło 3 z 5” albo „Gramy do 300 pkt”
+export function roundLabel(s) {
+  if (s.settings.mode === 'points') return `Gramy do ${s.settings.target} pkt`
+  const current = s.status === 'playing' || s.status === 'finished' ? s.round : s.round + 1
+  return `Hasło ${Math.min(Math.max(current, 1), s.settings.rounds)} z ${s.settings.rounds}`
+}
 
 // porównanie hasła bez polskich znaków, spacji i interpunkcji
 export const normPhrase = (t) =>
@@ -182,21 +182,29 @@ export const normPhrase = (t) =>
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^A-Z0-9]/g, '')
 
+// 💍 Niespodzianka: tylko gdy prowadzi Iwona i wpisała to hasło
+const SPECIAL_PHRASE = normPhrase('Czy zostaniesz moją świadkową')
+const isIwona = (name) => normPhrase((name || '').trim().split(/\s+/)[0]) === 'IWONA'
+export const isSpecialRound = (s) =>
+  !!s.phrase && normPhrase(s.phrase) === SPECIAL_PHRASE && isIwona(s.players[s.hostId]?.name)
+
 const clonePlayers = (players) =>
   Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { ...p }]))
 
-// pola czyszczone przy każdej nowej rundzie/powrocie do lobby
-const ROUND_RESET = {
-  phrase: '',
-  category: '',
-  revealed: null,
-  used: null,
-  activePlayerId: null,
-  winnerId: null,
+// kto przejmuje prowadzenie, gdy prowadzący zniknie
+const fallbackHost = (s, players) =>
+  (s.adminId && players[s.adminId] && s.adminId) ||
+  Object.entries(players).find(([, p]) => isOnline(p))?.[0] ||
+  Object.keys(players)[0] ||
+  null
+
+function gameIsOver(s, players) {
+  if (s.settings.mode === 'points')
+    return Object.values(players).some((p) => (p.score || 0) >= s.settings.target)
+  return (s.round || 0) >= s.settings.rounds
 }
 
-// Koniec rundy (zgadnięte hasło / wszystkie litery). players — już z
-// doliczonymi punktami za ostatnią literę.
+// Koniec rundy. Prowadzenie zostaje u prowadzącego — to on je przekazuje.
 function finishRound(s, players, winnerId, type, u = {}) {
   u.activePlayerId = null
   u.winnerId = winnerId || null
@@ -206,48 +214,52 @@ function finishRound(s, players, winnerId, type, u = {}) {
     u['players/' + winnerId + '/score'] = players[winnerId].score
   }
   Object.keys(players).forEach((id) => (u['players/' + id + '/solveBlock'] = null))
-  if (gameIsOver(s.settings, players)) {
-    u.status = 'over'
-    u.hostId = null
-  } else {
-    u.status = 'finished'
-    u.hostId = nextHost(players, s.hostId)
-  }
+  u.status = gameIsOver(s, players) ? 'over' : 'finished'
   u.lastAction = { type, playerId: winnerId || null, ts: now() }
   return u
 }
 
 function makeActions(get) {
   return {
-    // ——— lobby ———
-    setSettings(settings) {
-      if (get().status !== 'lobby') return
-      sync.update({ settings: { ...DEFAULT_SETTINGS, ...settings } })
+    // ——— admin ———
+    // pierwszy chętny zostaje adminem; przejąć można tylko nieobecnego admina
+    claimAdmin(playerId) {
+      const s = get()
+      if (!s.players[playerId]) return false
+      const admin = s.players[s.adminId]
+      if (admin && isOnline(admin) && s.adminId !== playerId) return false
+      if (s.adminId !== playerId) sync.update({ adminId: playerId })
+      return true
     },
 
-    // kto kliknie ▶ Zaczynamy, ten wymyśla pierwsze hasło
-    startGame(playerId) {
+    setSettings(byId, key) {
       const s = get()
-      if (s.status !== 'lobby' || !s.players[playerId]) return
+      if (s.status !== 'lobby' || byId !== s.adminId || !MODES[key]) return
+      sync.update({ settings: MODES[key] })
+    },
+
+    // admin klika Start i wymyśla pierwsze hasło
+    startGame(byId) {
+      const s = get()
+      if (s.status !== 'lobby' || byId !== s.adminId) return
       const u = {
         ...ROUND_RESET,
         status: 'entering',
-        hostId: playerId,
+        hostId: byId,
         round: 0,
-        lastAction: { type: 'host', playerId, ts: now() },
+        lastAction: { type: 'gamestart', playerId: byId, ts: now() },
       }
       Object.keys(s.players).forEach((id) => {
         u['players/' + id + '/score'] = 0
-        u['players/' + id + '/hosted'] = 0
         u['players/' + id + '/solveBlock'] = null
       })
       sync.update(u)
     },
 
-    // ——— prowadzący wpisuje hasło ———
-    submitPhrase(playerId, rawPhrase, rawCategory) {
+    // ——— prowadzenie ———
+    submitPhrase(byId, rawPhrase, rawCategory) {
       const s = get()
-      if (s.hostId !== playerId || !['entering', 'finished'].includes(s.status)) return
+      if (s.hostId !== byId || !['entering', 'finished'].includes(s.status)) return
       const phrase = cleanPhrase(rawPhrase)
       if (!phrase) return
       sync.update({
@@ -256,53 +268,58 @@ function makeActions(get) {
         category: (rawCategory || '').trim(),
         status: 'playing',
         round: (s.round || 0) + 1,
-        ['players/' + playerId + '/hosted']: (s.players[playerId]?.hosted || 0) + 1,
-        lastAction: { type: 'start', playerId, ts: now() },
+        lastAction: { type: 'start', playerId: byId, ts: now() },
       })
     },
 
-    // Pałeczka do następnej osoby z kolejki. Wpisujący: „pomiń mnie”.
-    // Ktokolwiek z ⚙️: prowadzący się zawiesił. W trakcie rundy przerywa ją
-    // BEZ odsłaniania hasła (czyścimy je, żeby nigdzie nie wyciekło).
-    passHost() {
+    // Przekazanie prowadzenia (prowadzący albo admin).
+    // W trakcie rundy: prowadzący oddaje swoją rundę dalej (nowa osoba widzi
+    // hasło), a admin, który nie prowadzi, przerywa rundę bez odsłaniania hasła.
+    passHost(byId, toId) {
       const s = get()
-      if (!['entering', 'finished', 'playing'].includes(s.status) || !s.hostId) return
-      const players = clonePlayers(s.players)
-      const u = { activePlayerId: null }
-      if (s.status === 'playing') Object.assign(u, ROUND_RESET)
-      else if (players[s.hostId]) {
-        // pominięcie liczy się jak wykorzystana kolejka
-        players[s.hostId].hosted = (players[s.hostId].hosted || 0) + 1
-        u['players/' + s.hostId + '/hosted'] = players[s.hostId].hosted
+      if (!s.players[toId] || toId === s.hostId) return
+      if (byId !== s.hostId && byId !== s.adminId) return
+      if (!['entering', 'playing', 'finished'].includes(s.status)) return
+      const u = {
+        hostId: toId,
+        lastAction: { type: 'host', playerId: toId, by: byId, ts: now() },
       }
-      if (gameIsOver(s.settings, players)) {
-        Object.assign(u, ROUND_RESET, {
-          status: 'over',
-          hostId: null,
-          lastAction: { type: 'gameover', ts: now() },
-        })
+      if (s.status === 'playing') {
+        if (byId === s.hostId) {
+          if (s.activePlayerId === toId) u.activePlayerId = null
+        } else {
+          Object.assign(u, ROUND_RESET, { status: 'entering', round: Math.max(0, (s.round || 0) - 1) })
+          u.lastAction.type = 'aborted'
+        }
       } else {
-        const next = nextHost(players, s.hostId)
-        Object.assign(u, {
-          status: 'entering',
-          hostId: next,
-          lastAction: { type: 'host', playerId: next, ts: now() },
-        })
+        Object.assign(u, ROUND_RESET, { status: 'entering' })
       }
       sync.update(u)
     },
 
-    // ——— runda ———
-    grantTurn(id) {
+    // po rundzie: prowadzący zostaje i wymyśla kolejne hasło
+    keepHosting(byId) {
       const s = get()
-      if (s.status !== 'playing' || id === s.hostId || !s.players[id]) return
+      if (s.status !== 'finished' || byId !== s.hostId) return
+      sync.update({
+        ...ROUND_RESET,
+        status: 'entering',
+        lastAction: { type: 'host', playerId: byId, by: byId, ts: now() },
+      })
+    },
+
+    // ——— runda ———
+    grantTurn(byId, id) {
+      const s = get()
+      if (s.status !== 'playing' || byId !== s.hostId || id === s.hostId || !s.players[id]) return
       sync.update({
         activePlayerId: id,
         lastAction: { type: 'turn', playerId: id, ts: now() },
       })
     },
 
-    revokeTurn() {
+    revokeTurn(byId) {
+      if (byId !== get().hostId) return
       sync.update({ activePlayerId: null })
     },
 
@@ -324,8 +341,8 @@ function makeActions(get) {
         players[playerId].score = (players[playerId].score || 0) + count * 10
         u['players/' + playerId + '/score'] = players[playerId].score
         const allShown = phraseLetters(s.phrase).every((L) => L === letter || s.revealed[L])
-        if (allShown) {
-          // ostatnia litera — zapamiętaj ją, potem zamknij rundę
+        // runda-niespodzianka kończy się wyłącznie decyzją Iwony
+        if (allShown && !isSpecialRound(s)) {
           const letterAction = u.lastAction
           u = finishRound(s, players, null, 'allRevealed', u)
           u.lastAction = { ...u.lastAction, letter: letterAction.letter, count, by: playerId }
@@ -340,6 +357,7 @@ function makeActions(get) {
       const s = get()
       const me = s.players[playerId]
       if (s.status !== 'playing' || !me || playerId === s.hostId) return 'blocked'
+      if (isSpecialRound(s)) return 'blocked'
       if (s.activePlayerId !== playerId) return 'noturn'
       const revealedCount = Object.keys(s.revealed).length
       if (me.solveBlock != null && me.solveBlock === revealedCount) return 'blocked'
@@ -351,27 +369,37 @@ function makeActions(get) {
       sync.update({
         ['players/' + playerId + '/solveBlock']: revealedCount,
         activePlayerId: null,
-        lastAction: {
-          type: 'wrongSolve',
-          playerId,
-          guess: cleanPhrase(guess).slice(0, 60),
-          ts: now(),
-        },
+        lastAction: { type: 'wrongSolve', playerId, guess: cleanPhrase(guess).slice(0, 60), ts: now() },
       })
       return 'wrong'
     },
 
     // prowadzący: ktoś powiedział całe hasło na głos
-    awardPhrase(id) {
+    awardPhrase(byId, id) {
       const s = get()
-      if (!s.players[id] || s.status !== 'playing' || id === s.hostId) return
-      sync.update(finishRound(s, clonePlayers(s.players), id, 'win'))
+      if (!s.players[id] || s.status !== 'playing' || byId !== s.hostId || id === s.hostId) return
+      const u = finishRound(s, clonePlayers(s.players), id, 'win')
+      if (isSpecialRound(s)) {
+        u.specialVideo = { nonce: now() }
+        u.lastAction.special = true
+      }
+      sync.update(u)
+    },
+
+    // 💍 filmik na TV: odtwórz ponownie / zamknij
+    replaySpecial() {
+      if (!get().specialVideo) return
+      sync.update({ specialVideo: { nonce: now() } })
+    },
+
+    closeSpecial() {
+      sync.update({ specialVideo: null })
     },
 
     // ——— koniec gry ———
-    endNow() {
+    endNow(byId) {
       const s = get()
-      if (s.status === 'lobby' || s.status === 'over') return
+      if (byId !== s.adminId || s.status === 'lobby' || s.status === 'over') return
       sync.update({
         ...ROUND_RESET,
         status: 'over',
@@ -380,8 +408,10 @@ function makeActions(get) {
       })
     },
 
-    // wszyscy zostają, punkty od zera, wracamy do poczekalni
-    newGame() {
+    // admin: ci sami gracze, punkty od zera, wracamy do poczekalni
+    newGame(byId) {
+      const s = get()
+      if (byId !== s.adminId) return
       const u = {
         ...ROUND_RESET,
         status: 'lobby',
@@ -389,9 +419,8 @@ function makeActions(get) {
         round: 0,
         lastAction: { type: 'lobby', ts: now() },
       }
-      Object.keys(get().players).forEach((id) => {
+      Object.keys(s.players).forEach((id) => {
         u['players/' + id + '/score'] = 0
-        u['players/' + id + '/hosted'] = 0
         u['players/' + id + '/solveBlock'] = null
       })
       sync.update(u)
@@ -407,7 +436,6 @@ function makeActions(get) {
         ['players/' + id + '/online']: true,
         ['players/' + id + '/joinedAt']: existing?.joinedAt || now(),
         ['players/' + id + '/score']: existing?.score || 0,
-        ['players/' + id + '/hosted']: existing?.hosted || 0,
         ...(keptPhoto ? { ['players/' + id + '/photo']: keptPhoto } : {}),
       }
       // Nowa osoba, a w grze nikogo — to stan po poprzedniej imprezie,
@@ -416,6 +444,7 @@ function makeActions(get) {
       if (!existing && !others.length && s.status !== 'lobby')
         Object.assign(u, ROUND_RESET, {
           status: 'lobby',
+          adminId: null,
           hostId: null,
           round: 0,
           lastAction: { type: 'lobby', ts: now() },
@@ -433,21 +462,16 @@ function makeActions(get) {
       const s = get()
       const players = clonePlayers(s.players)
       delete players[id]
+      // ostatnia osoba wychodzi — pusta poczekalnia
+      if (!Object.keys(players).length) return sync.update(fullReset())
       const u = { ['players/' + id]: null }
-      if (!Object.keys(players).length) {
-        Object.assign(u, ROUND_RESET, {
-          status: 'lobby',
-          hostId: null,
-          round: 0,
-          lastAction: { type: 'lobby', ts: now() },
-        })
-      } else {
-        if (s.activePlayerId === id) u.activePlayerId = null
-        if (s.hostId === id && s.status !== 'lobby' && s.status !== 'over') {
-          if (s.status === 'playing') Object.assign(u, ROUND_RESET, { status: 'entering' })
-          u.hostId = nextHost(players, null)
-          u.lastAction = { type: 'host', playerId: u.hostId, ts: now() }
-        }
+      const adminAfter = s.adminId === id ? null : s.adminId
+      if (s.adminId === id) u.adminId = null
+      if (s.activePlayerId === id) u.activePlayerId = null
+      if (s.hostId === id && s.status !== 'lobby' && s.status !== 'over') {
+        if (s.status === 'playing') Object.assign(u, ROUND_RESET, { status: 'entering' })
+        u.hostId = fallbackHost({ adminId: adminAfter }, players)
+        u.lastAction = { type: 'host', playerId: u.hostId, ts: now() }
       }
       sync.update(u)
     },
@@ -466,8 +490,7 @@ function makeActions(get) {
 }
 
 // used[L] bywa starym stringiem ('hit'/'miss') albo obiektem { r, by }
-export const usedInfo = (u) =>
-  !u ? null : typeof u === 'string' ? { r: u, by: null } : u
+export const usedInfo = (u) => (!u ? null : typeof u === 'string' ? { r: u, by: null } : u)
 
 export function sortedPlayers(players) {
   return Object.entries(players)
