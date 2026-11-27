@@ -58,7 +58,11 @@ function normalize(v) {
     settings: { ...DEFAULT_SETTINGS, ...(v?.settings || {}) },
     revealed: { ...(v?.revealed || {}) },
     used: { ...(v?.used || {}) },
-    players: { ...(v?.players || {}) },
+    // „duchy” bez imienia (np. spóźniony zapis online=false po wyjściu/resecie)
+    // pomijamy — inaczej wisiałyby na TV jako „?”
+    players: Object.fromEntries(
+      Object.entries(v?.players || {}).filter(([, p]) => p && typeof p.name === 'string' && p.name)
+    ),
   }
   // stany z poprzednich wersji gry
   if (s.status === 'idle') s.status = s.hostId ? 'entering' : 'lobby'
