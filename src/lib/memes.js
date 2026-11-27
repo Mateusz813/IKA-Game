@@ -1,5 +1,6 @@
 // Soundboard — memiczne dźwięki grane na TV.
 // Plik:    { src: '/sounds/x.mp3', start, dur } (sekundy; fragment nagrania).
+// Filmik:  { video: '/video/x.mp4' } — własny filmik w okienku na TV.
 //          optional: true — przycisk pojawi się dopiero, gdy plik istnieje.
 // YouTube: { youtube: { id, start, end } } — fragment filmu; bez `end` gra do
 //          końca. Na TV wyskakuje oficjalny odtwarzacz (zasady YouTube
@@ -50,6 +51,11 @@ export const MEMES = [
   { id: 'edukacja', emoji: '🎓', label: 'Edukacja', youtube: yt('Ru1JwyPGtCE', 93, 110) },
   { id: 'penis', emoji: '🍆', label: 'Penis', youtube: yt('Wv76_PmGTZA', 0, 26) },
   { id: 'pusc-mnie', emoji: '🙏', label: 'Puść mnie', youtube: yt('_UeRSsJAyrs', 2, 8) },
+
+  // własne filmiki (public/video) — na TV w okienku w prawym górnym rogu
+  { id: 'pawel-mati-1', emoji: '🎤', label: 'Paweł i Mati 1', video: '/video/pawel-mati-1.mp4' },
+  { id: 'pawel-mati-2', emoji: '💃', label: 'Paweł i Mati 2', video: '/video/pawel-mati-2.mp4' },
+  { id: 'pawel-mati-3', emoji: '🔫', label: 'Paweł i Mati 3', video: '/video/pawel-mati-3.mp4' },
 ]
 
 export const memeById = (id) => MEMES.find((m) => m.id === id)
@@ -68,7 +74,7 @@ export const sortedMemes = (list) =>
 // ścieżek, więc liczy się tylko odpowiedź z typem audio/*)
 const availability = new Map()
 export function memeAvailable(m) {
-  if (!m.optional || m.youtube) return Promise.resolve(true)
+  if (!m.optional || m.youtube || m.video) return Promise.resolve(true)
   if (!availability.has(m.src))
     availability.set(
       m.src,

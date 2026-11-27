@@ -1279,6 +1279,7 @@ textarea {
 }
 
 .yt-meme-frame > div,
+.yt-meme-frame video,
 .yt-meme-frame iframe {
   width: 100%;
   height: 100%;

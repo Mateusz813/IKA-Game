@@ -22,7 +22,7 @@ import {
   preloadSound,
 } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
-import YouTubeMeme from '../components/YouTubeMeme.jsx'
+import YouTubeMeme, { VideoMeme } from '../components/YouTubeMeme.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 const CELEBRATE = ['win', 'allRevealed']
@@ -68,14 +68,22 @@ export default function TV() {
         </button>
       )}
       {s.specialVideo && <SpecialVideoOverlay s={s} actions={actions} />}
-      {ytMeme && (
-        <YouTubeMeme
-          key={ytMeme.ts}
-          meme={ytMeme.def}
-          who={ytMeme.by ? s.players[ytMeme.by] : null}
-          onDone={() => setYtMeme(null)}
-        />
-      )}
+      {ytMeme &&
+        (ytMeme.def.video ? (
+          <VideoMeme
+            key={ytMeme.ts}
+            meme={ytMeme.def}
+            who={ytMeme.by ? s.players[ytMeme.by] : null}
+            onDone={() => setYtMeme(null)}
+          />
+        ) : (
+          <YouTubeMeme
+            key={ytMeme.ts}
+            meme={ytMeme.def}
+            who={ytMeme.by ? s.players[ytMeme.by] : null}
+            onDone={() => setYtMeme(null)}
+          />
+        ))}
     </>
   )
 
@@ -296,7 +304,8 @@ function SpecialVideoOverlay({ s, actions }) {
     v.muted = false
     v.play()
       .then(() => setNeedTap(false))
-      .catch(() => {
+      .catch((e) => {
+        if (e?.name !== 'NotAllowedError') return // np. przerwane pauzą — nie blokada dźwięku
         // przeglądarka zablokowała dźwięk — gramy obraz, prosimy o kliknięcie
         v.muted = true
         v.play().catch(() => {})
@@ -453,7 +462,7 @@ function useMemeSound(meme, soundOn, showYouTube) {
     if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
     const def = memeById(meme.id)
     if (!def || !soundOn) return
-    if (def.youtube) showYouTube({ def, by: meme.by, ts: meme.ts })
+    if (def.youtube || def.video) showYouTube({ def, by: meme.by, ts: meme.ts })
     else sounds.meme(def)
   }, [meme, soundOn, showYouTube])
 }
@@ -462,7 +471,7 @@ function useMemeSound(meme, soundOn, showYouTube) {
 function MemeFlash({ meme, players }) {
   const fresh = useFreshAction(meme, 2800)
   const def = fresh ? memeById(fresh.id) : null
-  if (!def || def.youtube) return null // film ma własny podpis
+  if (!def || def.youtube || def.video) return null // film ma własny podpis
   const who = fresh.by ? players?.[fresh.by] : null
   return (
     <div className="meme-flash" key={fresh.ts}>

@@ -24,6 +24,58 @@ function loadYouTubeApi() {
   return apiPromise
 }
 
+// Okienko na TV z własnym filmikiem (public/video) — gra z dźwiękiem i znika.
+export function VideoMeme({ meme, who, onDone }) {
+  const ref = useRef(null)
+  const doneRef = useRef(onDone)
+  doneRef.current = onDone
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    let closed = false
+    const close = () => {
+      if (closed) return
+      closed = true
+      doneRef.current()
+    }
+    v.muted = false
+    v.play().catch((e) => {
+      if (e?.name === 'AbortError') return // przerwane pauzą (np. ponowny montaż) — nie błąd
+      if (e?.name !== 'NotAllowedError') return close()
+      // przeglądarka zablokowała dźwięk — grajmy chociaż obraz
+      v.muted = true
+      v.play().catch(() => {})
+    })
+    v.addEventListener('ended', close)
+    v.addEventListener('error', close)
+    const safety = setTimeout(close, 60 * 1000)
+    return () => {
+      closed = true
+      clearTimeout(safety)
+      v.pause()
+    }
+  }, [meme])
+
+  return (
+    <div className="yt-meme">
+      <div className="yt-meme-card">
+        <div className="yt-meme-caption">
+          <span className="yt-meme-title">{memeCaption(meme)}</span>
+          {who && (
+            <span className="yt-meme-who">
+              <Avatar player={who} size="min(3vw, 4.4vh)" /> 🔊 {who.name}
+            </span>
+          )}
+        </div>
+        <div className="yt-meme-frame">
+          <video ref={ref} src={meme.video} playsInline preload="auto" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Okienko na TV: fragment filmu (start–end) z dźwiękiem, potem samo znika.
 // Odtwarzacz musi być widoczny — tak wymagają zasady YouTube.
 export default function YouTubeMeme({ meme, who, onDone }) {
