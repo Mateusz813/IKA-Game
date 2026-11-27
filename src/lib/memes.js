@@ -58,14 +58,13 @@ export const MEMES = [
   { id: 'pawel-mati-3', emoji: '🔫', label: 'Paweł i Mati 3', video: '/video/pawel-mati-3.mp4' },
 
   // 🎬 Story — tylko dla Mateusza: 12 scenek po kolei na cały ekran TV,
-  // z przenikaniem i cichą muzyką w tle (YouTube, od 0:27)
+  // z przenikaniem (opcjonalnie music: { id, start, volume } — YouTube w rogu)
   {
     id: 'story',
     emoji: '🎬',
     label: 'Story',
     onlyFor: 'MATEUSZ',
     story: Array.from({ length: 12 }, (_, i) => `/video/story/${String(i + 1).padStart(2, '0')}.mp4`),
-    music: { id: 'XwVZ4MzQ7mA', start: 27, volume: 12 },
   },
 ]
 
