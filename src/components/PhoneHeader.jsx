@@ -198,6 +198,17 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
             }}
           />
         )}
+        {iAmAdmin && (
+          <ConfirmButton
+            className="dd-item dd-item--plain dd-item--danger"
+            label="🧹 Resetuj wszystko — wszyscy od początku"
+            confirmLabel="Na pewno? Usunie graczy i punkty, wszystkich wyrzuci"
+            onConfirm={() => {
+              actions.resetAll(myId)
+              onClose()
+            }}
+          />
+        )}
         {!iAmAdmin && adminMissing && (
           <ConfirmButton
             className="dd-item dd-item--plain"

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   useGame,
   sortedPlayers,
@@ -10,7 +10,16 @@ import {
   isSpecialRound,
   isOnline,
 } from '../lib/store.jsx'
-import { useFreshAction, getPlayerId, getSavedName, saveName } from '../lib/hooks.js'
+import {
+  useFreshAction,
+  getPlayerId,
+  getSavedName,
+  saveName,
+  clearSavedName,
+  getSavedGameId,
+  saveGameId,
+  serverNow,
+} from '../lib/hooks.js'
 import Board from '../components/Board.jsx'
 import Keyboard from '../components/Keyboard.jsx'
 import PhoneHeader, { HowToPlay } from '../components/PhoneHeader.jsx'
@@ -24,13 +33,30 @@ export default function Player() {
   const [params, setParams] = useSearchParams()
   const wantAdmin = params.get('admin') === '1'
 
-  // Automatyczny powrót do gry po odświeżeniu (raz na wejście)
+  const navigate = useNavigate()
+  const openedAt = useRef(serverNow())
+
+  // Automatyczny powrót do gry po odświeżeniu (raz na wejście) — tylko do tej
+  // samej gry: po resecie admina (nowe gameId) trzeba dołączyć od nowa
   useEffect(() => {
     if (!ready || autoJoined.current) return
     autoJoined.current = true
     const saved = getSavedName()
-    if (saved) actions.joinPlayer(myId, state.players[myId]?.name || saved)
+    const sameGame = !state.gameId || getSavedGameId() === state.gameId || !!state.players[myId]
+    if (saved && sameGame) {
+      actions.joinPlayer(myId, state.players[myId]?.name || saved)
+      saveGameId(state.gameId)
+    }
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🧹 admin zresetował grę — wszyscy wracają na start
+  const la = state.lastAction
+  useEffect(() => {
+    if (!ready || la?.type !== 'hardreset' || la.ts < openedAt.current) return
+    if (state.players[myId]) return
+    clearSavedName()
+    navigate('/', { replace: true })
+  }, [ready, la?.type, la?.ts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // wejście z kafelka „Admin”: po dołączeniu zostań adminem (jeśli wolne)
   const joined = !!state.players[myId]
@@ -51,6 +77,7 @@ export default function Player() {
         asAdmin={wantAdmin}
         onJoin={(name, photo) => {
           saveName(name)
+          saveGameId(state.gameId)
           actions.joinPlayer(myId, name, photo)
         }}
       />

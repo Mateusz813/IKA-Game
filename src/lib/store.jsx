@@ -47,6 +47,7 @@ const EMPTY = {
   meme: null, // { id, by, ts } — soundboard, dźwięk gra na TV
   tvAudio: null, // { state: on|locked|muted|off }
   specialVideo: null, // { nonce } — filmik „świadkowa” otwarty na TV
+  gameId: null, // zmienia się przy pełnym resecie — telefony wracają same tylko do tej samej gry
 }
 
 // RTDB usuwa puste obiekty i nulle — uzupełniamy brakujące pola.
@@ -140,7 +141,8 @@ const ROUND_RESET = {
 }
 
 // pusta poczekalnia bez graczy — ustawienia trybu zostają
-const fullReset = () => ({
+// type: 'fresh' (automatycznie, stara gra) | 'hardreset' (admin — wszystkich wyrzuca)
+const fullReset = (type = 'fresh') => ({
   ...ROUND_RESET,
   status: 'lobby',
   players: null,
@@ -149,7 +151,8 @@ const fullReset = () => ({
   round: 0,
   meme: null,
   handover: null,
-  lastAction: { type: 'fresh', ts: now() },
+  gameId: Math.random().toString(36).slice(2, 10),
+  lastAction: { type, ts: now() },
 })
 
 // ——— pomocnicze ———
@@ -424,6 +427,12 @@ function makeActions(get) {
         u['players/' + id + '/solveBlock'] = null
       })
       sync.update(u)
+    },
+
+    // 🧹 admin: wszystko od zera — usuwa graczy i punkty, wszyscy na start
+    resetAll(byId) {
+      if (byId !== get().adminId) return
+      sync.update(fullReset('hardreset'))
     },
 
     // ——— gracze ———

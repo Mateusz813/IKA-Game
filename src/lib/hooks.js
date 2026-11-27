@@ -53,4 +53,12 @@ export function getPlayerId() {
 
 export const getSavedName = () => localStorage.getItem(slotKey(NAME_KEY)) || ''
 export const saveName = (name) => localStorage.setItem(slotKey(NAME_KEY), name)
-export const clearSavedName = () => localStorage.removeItem(slotKey(NAME_KEY))
+export const clearSavedName = () => {
+  localStorage.removeItem(slotKey(NAME_KEY))
+  localStorage.removeItem(slotKey(GAME_KEY))
+}
+
+// do której gry (gameId) dołączył ten telefon — po resecie admina nie wracamy sami
+const GAME_KEY = 'ika-game-id'
+export const getSavedGameId = () => localStorage.getItem(slotKey(GAME_KEY))
+export const saveGameId = (id) => (id ? localStorage.setItem(slotKey(GAME_KEY), id) : null)
