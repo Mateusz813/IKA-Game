@@ -1282,10 +1282,7 @@ textarea {
 
 .story-dot--on { background: rgba(255, 255, 255, 0.9); }
 
-.story-frame {
-  z-index: 1;
-  pointer-events: none;
-}
+.story-video--on { opacity: 1; }
 
 .story-start {
   font-size: min(3vw, 4.4vh) !important;

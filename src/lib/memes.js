@@ -60,14 +60,18 @@ export const MEMES = [
   { id: 'iwona-wiki-2', emoji: '📢', label: 'Iwona i Wiki 2', video: '/video/iwona-wiki-2.mp4' },
   { id: 'iwona-wiki-3', emoji: '🐴', label: 'Iwona i Wiki 3', video: '/video/iwona-wiki-3.mp4' },
 
-  // 🎬 Story — tylko dla Mateusza: 12 scenek po kolei na cały ekran TV,
-  // z płynnym przenikaniem (jeden odtwarzacz — działa też na telewizorach)
+  // 🎬 Story — tylko dla Mateusza: 12 scenek sklejonych w jeden film z płynnymi
+  // przenikaniami (scripts/build-story.py) — jeden plik gra na TV bez przerw.
+  // chapters: początek każdej scenki w sekundach (do paska postępu)
   {
     id: 'story',
     emoji: '🎬',
     label: 'Story',
     onlyFor: 'MATEUSZ',
-    story: Array.from({ length: 12 }, (_, i) => `/video/story/${String(i + 1).padStart(2, '0')}.mp4`),
+    story: {
+      src: '/video/story.mp4',
+      chapters: [0, 2.6, 5.2, 8.8, 11.4, 14, 17.6, 20.2, 22.8, 25.4, 28, 31.6],
+    },
   },
 ]
 
