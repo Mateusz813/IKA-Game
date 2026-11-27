@@ -56,9 +56,33 @@ export const MEMES = [
   { id: 'pawel-mati-1', emoji: '🎤', label: 'Paweł i Mati 1', video: '/video/pawel-mati-1.mp4' },
   { id: 'pawel-mati-2', emoji: '💃', label: 'Paweł i Mati 2', video: '/video/pawel-mati-2.mp4' },
   { id: 'pawel-mati-3', emoji: '🔫', label: 'Paweł i Mati 3', video: '/video/pawel-mati-3.mp4' },
+
+  // 🎬 Story — tylko dla Mateusza: 12 scenek po kolei na cały ekran TV,
+  // z przenikaniem i cichą muzyką w tle (YouTube, od 0:27)
+  {
+    id: 'story',
+    emoji: '🎬',
+    label: 'Story',
+    onlyFor: 'MATEUSZ',
+    story: Array.from({ length: 12 }, (_, i) => `/video/story/${String(i + 1).padStart(2, '0')}.mp4`),
+    music: { id: 'XwVZ4MzQ7mA', start: 27, volume: 12 },
+  },
 ]
 
 export const memeById = (id) => MEMES.find((m) => m.id === id)
+
+// pierwsze imię bez polskich znaków i wielkości liter („Mateusz K.” → MATEUSZ)
+const firstName = (name) =>
+  (name || '')
+    .trim()
+    .split(/\s+/)[0]
+    .toLocaleUpperCase('pl-PL')
+    .replace(/Ł/g, 'L')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+// dźwięki „tylko dla” konkretnej osoby (onlyFor) widzi i puszcza tylko ona
+export const memeAllowedFor = (m, playerName) => !m.onlyFor || firstName(playerName) === m.onlyFor
 
 // napis na TV
 export const memeCaption = (m) =>
@@ -74,7 +98,7 @@ export const sortedMemes = (list) =>
 // ścieżek, więc liczy się tylko odpowiedź z typem audio/*)
 const availability = new Map()
 export function memeAvailable(m) {
-  if (!m.optional || m.youtube || m.video) return Promise.resolve(true)
+  if (!m.optional || m.youtube || m.video || m.story) return Promise.resolve(true)
   if (!availability.has(m.src))
     availability.set(
       m.src,

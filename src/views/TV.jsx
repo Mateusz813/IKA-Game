@@ -12,7 +12,7 @@ import {
 import { useFreshAction, serverNow } from '../lib/hooks.js'
 import { sync } from '../lib/sync/index.js'
 import { ALPHABET } from '../lib/alphabet.js'
-import { MEMES, memeById, memeCaption } from '../lib/memes.js'
+import { MEMES, memeById, memeCaption, memeAllowedFor } from '../lib/memes.js'
 import {
   sounds,
   initAudio,
@@ -23,6 +23,7 @@ import {
 } from '../lib/sound.js'
 import Board from '../components/Board.jsx'
 import YouTubeMeme, { VideoMeme } from '../components/YouTubeMeme.jsx'
+import StoryOverlay from '../components/StoryOverlay.jsx'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 const CELEBRATE = ['win', 'allRevealed']
@@ -46,7 +47,8 @@ export default function TV() {
   const audio = useAudioUnlock()
   const [ytMeme, setYtMeme] = useState(null)
   useTvSounds(ready ? s.lastAction : null, soundOn, special)
-  useMemeSound(ready ? s.meme : null, soundOn, setYtMeme)
+  const [story, setStory] = useState(null)
+  useMemeSound(ready ? s.meme : null, soundOn, setYtMeme, s.players, setStory)
   useReportTvAudio(ready, soundOn ? audio : 'muted', s.tvAudio?.state, actions)
 
   // runda-niespodzianka w grze — ładujemy filmik zawczasu, żeby ruszył od razu
@@ -68,6 +70,14 @@ export default function TV() {
         </button>
       )}
       {s.specialVideo && <SpecialVideoOverlay s={s} actions={actions} />}
+      {story && (
+        <StoryOverlay
+          key={story.ts}
+          meme={story.def}
+          who={story.by ? s.players[story.by] : null}
+          onDone={() => setStory(null)}
+        />
+      )}
       {ytMeme &&
         (ytMeme.def.video ? (
           <VideoMeme
@@ -454,24 +464,31 @@ function useReportTvAudio(ready, desired, dbState, actions) {
 }
 
 // Dźwięk z soundboardu (tylko TV); memy z YouTube otwierają okienko z filmem
-function useMemeSound(meme, soundOn, showYouTube) {
+function useMemeSound(meme, soundOn, showYouTube, players, showStory) {
   const lastTs = useRef(0)
   useEffect(() => {
     if (!meme || meme.ts === lastTs.current) return
     lastTs.current = meme.ts
     if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
+    const senderName = players?.[meme.by]?.name
+    if (meme.id === 'story-stop') {
+      if (memeAllowedFor(memeById('story'), senderName)) showStory(null)
+      return
+    }
     const def = memeById(meme.id)
     if (!def || !soundOn) return
-    if (def.youtube || def.video) showYouTube({ def, by: meme.by, ts: meme.ts })
+    if (!memeAllowedFor(def, senderName)) return // „tylko dla” — sprawdzamy też na TV
+    if (def.story) showStory({ def, by: meme.by, ts: meme.ts })
+    else if (def.youtube || def.video) showYouTube({ def, by: meme.by, ts: meme.ts })
     else sounds.meme(def)
-  }, [meme, soundOn, showYouTube])
+  }, [meme, soundOn, showYouTube, players, showStory])
 }
 
 // Napis-pieczątka przy memie z soundboardu
 function MemeFlash({ meme, players }) {
   const fresh = useFreshAction(meme, 2800)
   const def = fresh ? memeById(fresh.id) : null
-  if (!def || def.youtube || def.video) return null // film ma własny podpis
+  if (!def || def.youtube || def.video || def.story) return null // film ma własny podpis
   const who = fresh.by ? players?.[fresh.by] : null
   return (
     <div className="meme-flash" key={fresh.ts}>

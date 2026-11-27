@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MEMES, memeAvailable, sortedMemes } from '../lib/memes.js'
+import { MEMES, memeAvailable, sortedMemes, memeAllowedFor } from '../lib/memes.js'
 import { clearSavedName, nextFreeSlot, playerSlot } from '../lib/hooks.js'
 import { TvAudioHint, PassHostButton } from './HostConsole.jsx'
 import { isOnline } from '../lib/store.jsx'
@@ -88,14 +88,16 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
   const iAmAdmin = s.adminId === myId
   const admin = s.players[s.adminId]
   const adminMissing = !admin || !isOnline(admin)
-  const [list, setList] = useState(() => sortedMemes(MEMES.filter((m) => !m.optional)))
+  const myName = s.players[myId]?.name
+  const mine = MEMES.filter((m) => memeAllowedFor(m, myName))
+  const [list, setList] = useState(() => sortedMemes(mine.filter((m) => !m.optional)))
   const [sent, setSent] = useState(null)
   const lastAt = useRef(0)
 
   useEffect(() => {
     let alive = true
-    Promise.all(MEMES.map(memeAvailable)).then((ok) => {
-      if (alive) setList(sortedMemes(MEMES.filter((_, i) => ok[i])))
+    Promise.all(mine.map(memeAvailable)).then((ok) => {
+      if (alive) setList(sortedMemes(mine.filter((_, i) => ok[i])))
     })
     return () => {
       alive = false
@@ -132,6 +134,16 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
             </button>
           ))}
         </div>
+        {list.some((m) => m.story) && (
+          <button
+            role="menuitem"
+            className="dd-item dd-item--plain"
+            onClick={() => actions.playMeme('story-stop', myId)}
+          >
+            <span className="dd-emoji">⏹</span>
+            <span className="dd-label">Zatrzymaj Story na TV</span>
+          </button>
+        )}
         <div className="dd-sep" />
         <button role="menuitem" className="dd-item dd-item--plain" onClick={onPhoto}>
           <span className="dd-emoji">📷</span>

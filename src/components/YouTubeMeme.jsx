@@ -4,7 +4,7 @@ import { Avatar } from './common.jsx'
 
 // Oficjalny YouTube IFrame Player API — ładowany raz, dopiero gdy potrzebny
 let apiPromise = null
-function loadYouTubeApi() {
+export function loadYouTubeApi() {
   if (window.YT?.Player) return Promise.resolve(window.YT)
   if (!apiPromise)
     apiPromise = new Promise((resolve, reject) => {

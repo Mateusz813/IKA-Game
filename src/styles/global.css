@@ -1221,6 +1221,113 @@ textarea {
   color: var(--gold);
 }
 
+/* 🎬 Story — scenki na cały ekran z przenikaniem */
+.story {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #000;
+  animation: fade-in 0.6s;
+  transition: opacity 0.8s;
+}
+
+.story--out { opacity: 0; }
+
+.story-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  opacity: 0;
+}
+
+.story-top {
+  position: absolute;
+  top: 2vh;
+  left: 2vw;
+  right: 2vw;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+}
+
+.story-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6vw;
+  font-weight: 900;
+  font-size: min(1.8vw, 2.6vh);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.6vh 1.2vw;
+  border-radius: 999px;
+}
+
+.story-progress {
+  flex: 1;
+  display: flex;
+  gap: 0.4vw;
+}
+
+.story-dot {
+  flex: 1;
+  height: 0.6vh;
+  min-height: 3px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.25);
+  transition: background 0.4s;
+}
+
+.story-dot--on { background: rgba(255, 255, 255, 0.9); }
+
+.story-unmute {
+  position: absolute;
+  left: 50%;
+  bottom: 6vh;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: min(2.2vw, 3.2vh);
+  padding: 1.4vh 2.4vw;
+}
+
+/* muzyka w tle: mały, widoczny odtwarzacz YouTube (min. 356×200 px) */
+.story-music {
+  position: absolute;
+  right: 1.5vw;
+  bottom: 2vh;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  opacity: 0.85;
+}
+
+.story-music-label {
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.story-music-frame {
+  width: 356px;
+  height: 200px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.story-music-frame > div,
+.story-music-frame iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 /* okienko z fragmentem filmu YouTube (soundboard) — prawy górny róg,
    bez przyciemniania planszy; YouTube wymaga min. 200 px wysokości odtwarzacza */
 .yt-meme {
