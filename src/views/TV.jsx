@@ -24,6 +24,7 @@ import {
 import Board from '../components/Board.jsx'
 import YouTubeMeme, { VideoMeme } from '../components/YouTubeMeme.jsx'
 import StoryOverlay from '../components/StoryOverlay.jsx'
+import { safePlay } from '../lib/media.js'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 const CELEBRATE = ['win', 'allRevealed']
@@ -312,13 +313,13 @@ function SpecialVideoOverlay({ s, actions }) {
     if (!v) return
     v.currentTime = 0
     v.muted = false
-    v.play()
+    safePlay(v)
       .then(() => setNeedTap(false))
       .catch((e) => {
         if (e?.name !== 'NotAllowedError') return // np. przerwane pauzą — nie blokada dźwięku
         // przeglądarka zablokowała dźwięk — gramy obraz, prosimy o kliknięcie
         v.muted = true
-        v.play().catch(() => {})
+        safePlay(v).catch(() => {})
         setNeedTap(true)
       })
   }, [nonce])
@@ -357,7 +358,7 @@ function SpecialVideoOverlay({ s, actions }) {
               const v = ref.current
               v.muted = false
               v.currentTime = 0
-              v.play().catch(() => {})
+              safePlay(v).catch(() => {})
               setNeedTap(false)
             }}
           >

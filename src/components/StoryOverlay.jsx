@@ -1,32 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadYouTubeApi } from './YouTubeMeme.jsx'
+import { safePlay } from '../lib/media.js'
 import { Avatar } from './common.jsx'
 
 const FADE = 0.7 // sekundy przenikania między scenkami
-const STEP = 40 // ms — pętla na setTimeout (działa też w tle, rAF nie)
+const STEP = 100 // ms — pętla kontrolna (setTimeout działa też w tle)
 
-// 🎬 Story: scenki jedna po drugiej na cały ekran, z płynnym przenikaniem
-// obrazu i dźwięku. Muzyka gra cicho z małego, widocznego odtwarzacza
-// YouTube w rogu (zasady YouTube nie pozwalają na ukryty odtwarzacz).
+// 🎬 Story: scenki jedna po drugiej na cały ekran.
+// Jeden odtwarzacz wideo — telewizory często mają tylko jeden sprzętowy
+// dekoder, a drugi <video> potrafi zablokować pierwszy (czarny ekran).
+// Przenikanie: ostatnia klatka scenki trafia na <canvas>, który płynnie
+// znika nad kolejną scenką. Kolejne scenki ładujemy w tle do pamięci.
 export default function StoryOverlay({ meme, who, onDone }) {
   const rootRef = useRef(null)
-  const aRef = useRef(null)
-  const bRef = useRef(null)
-  const musicRef = useRef(null)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
   const stopRef = useRef(() => {})
+  const startRef = useRef(() => {})
   const doneRef = useRef(onDone)
   doneRef.current = onDone
-  const [needTap, setNeedTap] = useState(false)
   const [scene, setScene] = useState(1)
+  const [needTap, setNeedTap] = useState(false) // dźwięk zablokowany — gra wyciszone
+  const [needStart, setNeedStart] = useState(false) // nic nie ruszyło — kliknij ▶
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const scenes = meme.story
-    const vids = [aRef.current, bRef.current]
-    let active = 0
+    const v = videoRef.current
+    const c = canvasRef.current
     let idx = 0
-    let fading = false
     let closed = false
-    let music = null
+    let switching = false
+    let lastT = -1
+    let lastMove = performance.now()
+    const blobUrls = new Map()
     const timers = new Set()
     const later = (fn, ms) => {
       const t = setTimeout(() => {
@@ -36,119 +42,144 @@ export default function StoryOverlay({ meme, who, onDone }) {
       timers.add(t)
     }
 
-    const playSafe = (v) =>
-      v.play().catch((e) => {
-        if (e?.name !== 'NotAllowedError') return
-        // przeglądarka zablokowała dźwięk — obraz gra, prosimy o kliknięcie
-        vids.forEach((x) => (x.muted = true))
-        v.play().catch(() => {})
-        setNeedTap(true)
-      })
-    const load = (v, i) => {
-      v.src = scenes[i]
-      v.load()
-    }
+    // kolejne scenki do pamięci (blob) — przełączenie bez czekania na sieć
+    ;(async () => {
+      for (let i = 1; i < scenes.length && !closed; i++) {
+        try {
+          const r = await fetch(scenes[i])
+          if (!r.ok) continue
+          const b = await r.blob()
+          if (closed) return
+          blobUrls.set(i, URL.createObjectURL(b))
+        } catch { /* zostanie adres sieciowy */ }
+      }
+    })()
 
-    load(vids[0], 0)
-    if (scenes[1]) load(vids[1], 1)
-    vids[0].style.opacity = '1'
-    vids[1].style.opacity = '0'
-    vids[0].volume = 1
-    vids[1].volume = 0
-    playSafe(vids[0])
+    const play = () =>
+      safePlay(v)
+        .then(() => setNeedStart(false))
+        .catch((e) => {
+          if (e?.name === 'NotAllowedError') {
+            // bez dźwięku przeglądarka zwykle pozwala — gramy wyciszone
+            v.muted = true
+            setNeedTap(true)
+            safePlay(v).catch(() => setNeedStart(true))
+          }
+        })
 
-    const fadeMusic = (to, ms) => {
-      if (!music?.getVolume) return
-      const from = music.getVolume()
+    const rampVolume = () => {
       const t0 = performance.now()
       const step = () => {
-        const k = Math.min(1, (performance.now() - t0) / ms)
+        const k = Math.min(1, (performance.now() - t0) / 300)
         try {
-          music.setVolume(Math.round(from + (to - from) * k))
-        } catch { /* odtwarzacz już zamknięty */ }
-        if (k < 1) later(step, STEP)
+          v.volume = k
+        } catch { /* niektóre TV nie pozwalają zmieniać głośności */ }
+        if (k < 1 && !closed) later(step, 30)
       }
       step()
+    }
+
+    const load = (i) => {
+      v.src = blobUrls.get(i) || scenes[i]
+      try {
+        v.load()
+      } catch { /* ignore */ }
+      lastT = -1
+      lastMove = performance.now()
+      rampVolume()
+      play()
+    }
+
+    const snapshot = () => {
+      try {
+        if (!v.videoWidth) return false
+        c.width = v.videoWidth
+        c.height = v.videoHeight
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height)
+        return true
+      } catch {
+        return false
+      }
     }
 
     const finish = () => {
       if (closed) return
       closed = true
       rootRef.current?.classList.add('story--out')
-      fadeMusic(0, 800)
       later(() => doneRef.current(), 900)
     }
     stopRef.current = finish
 
-    const crossfade = () => {
-      fading = true
-      const cur = vids[active]
-      const nxt = vids[1 - active]
-      nxt.currentTime = 0
-      nxt.volume = 0
-      playSafe(nxt)
-      const t0 = performance.now()
-      const step = () => {
-        const k = Math.min(1, (performance.now() - t0) / (FADE * 1000))
-        nxt.style.opacity = String(k)
-        cur.style.opacity = String(1 - k)
-        nxt.volume = k
-        cur.volume = 1 - k
-        if (k < 1) return later(step, STEP)
-        cur.pause()
-        active = 1 - active
-        idx += 1
-        setScene(idx + 1)
-        fading = false
-        if (scenes[idx + 1]) load(cur, idx + 1)
+    const next = () => {
+      if (closed || switching) return
+      if (idx >= scenes.length - 1) return finish()
+      switching = true
+      // zamrożona ostatnia klatka nad odtwarzaczem (albo przejście przez czerń)
+      const frozen = snapshot()
+      c.style.transition = 'none'
+      c.style.opacity = frozen ? '1' : '0'
+      if (!frozen) {
+        v.style.transition = 'none'
+        v.style.opacity = '0'
       }
-      step()
+      idx += 1
+      setScene(idx + 1)
+      load(idx)
+      let revealed = false
+      const reveal = () => {
+        if (revealed || closed) return
+        revealed = true
+        v.removeEventListener('playing', reveal)
+        c.style.transition = `opacity ${FADE}s`
+        c.style.opacity = '0'
+        v.style.transition = `opacity ${FADE}s`
+        v.style.opacity = '1'
+        later(() => (switching = false), FADE * 1000)
+      }
+      v.addEventListener('playing', reveal)
+      later(reveal, 1500) // gdyby „playing” nie przyszło
     }
 
+    const onEnded = () => next()
+    const onError = () => {
+      const code = v.error?.code
+      console.warn('[Story] nie da się odtworzyć scenki', idx + 1, code)
+      setError(`Scenka ${idx + 1}: błąd odtwarzania (kod ${code ?? '?'})`)
+      later(next, 800)
+    }
+    v.addEventListener('ended', onEnded)
+    v.addEventListener('error', onError)
+
+    // pętla kontrolna: koniec scenki (gdy „ended” nie przyjdzie) i zawieszenie
     const tick = () => {
       if (closed) return
-      const cur = vids[active]
-      if (!fading && cur.duration && cur.currentTime > 0) {
-        const left = cur.duration - cur.currentTime
-        if (idx < scenes.length - 1 && left <= FADE) crossfade()
-        else if (idx === scenes.length - 1 && (cur.ended || left <= 0.05)) finish()
+      const now = performance.now()
+      if (v.currentTime !== lastT) {
+        lastT = v.currentTime
+        lastMove = now
+      }
+      if (!switching && v.duration && isFinite(v.duration) && v.currentTime >= v.duration - 0.08) next()
+      else if (!switching && now - lastMove > 5000) {
+        if (idx === 0 && v.currentTime === 0) setNeedStart(true) // nic nie ruszyło
+        else next() // scenka się zawiesiła — dalej
+        lastMove = now
       }
       later(tick, STEP)
     }
-    tick()
 
-    // muzyka w tle — cicho, od podanej sekundy
-    if (meme.music) {
-      loadYouTubeApi()
-        .then((YT) => {
-          if (closed || !musicRef.current) return
-          music = new YT.Player(musicRef.current, {
-            host: 'https://www.youtube-nocookie.com',
-            videoId: meme.music.id,
-            width: '100%',
-            height: '100%',
-            playerVars: {
-              start: meme.music.start || 0,
-              autoplay: 1,
-              controls: 0,
-              disablekb: 1,
-              fs: 0,
-              rel: 0,
-              playsinline: 1,
-              iv_load_policy: 3,
-              origin: window.location.origin,
-            },
-            events: {
-              onReady: (e) => {
-                e.target.unMute()
-                e.target.setVolume(meme.music.volume ?? 12)
-                e.target.playVideo()
-              },
-            },
-          })
-        })
-        .catch(() => {})
+    startRef.current = () => {
+      v.muted = false
+      setNeedTap(false)
+      play()
     }
+
+    c.style.opacity = '0'
+    v.style.opacity = '1'
+    load(0)
+    later(() => {
+      if (!closed && v.currentTime === 0 && v.paused) setNeedStart(true)
+    }, 3000)
+    tick()
 
     const onKey = (e) => e.key === 'Escape' && finish()
     window.addEventListener('keydown', onKey)
@@ -157,21 +188,21 @@ export default function StoryOverlay({ meme, who, onDone }) {
       closed = true
       timers.forEach(clearTimeout)
       window.removeEventListener('keydown', onKey)
-      vids.forEach((v) => {
-        v.pause()
-        v.removeAttribute('src')
-        v.load()
-      })
+      v.removeEventListener('ended', onEnded)
+      v.removeEventListener('error', onError)
+      v.pause()
+      v.removeAttribute('src')
       try {
-        music?.destroy()
+        v.load()
       } catch { /* ignore */ }
+      blobUrls.forEach((u) => URL.revokeObjectURL(u))
     }
   }, [meme])
 
   return (
     <div className="story" ref={rootRef}>
-      <video ref={aRef} className="story-video" playsInline preload="auto" />
-      <video ref={bRef} className="story-video" playsInline preload="auto" />
+      <video ref={videoRef} className="story-video" playsInline preload="auto" />
+      <canvas ref={canvasRef} className="story-video story-frame" />
 
       <div className="story-top">
         <span className="story-badge">
@@ -187,26 +218,19 @@ export default function StoryOverlay({ meme, who, onDone }) {
         </button>
       </div>
 
-      {needTap && (
-        <button
-          className="btn btn--gold story-unmute"
-          onClick={() => {
-            ;[aRef.current, bRef.current].forEach((v) => (v.muted = false))
-            setNeedTap(false)
-          }}
-        >
-          🔊 Kliknij, żeby włączyć dźwięk
+      {needStart ? (
+        <button className="btn btn--gold story-unmute story-start" onClick={() => startRef.current()}>
+          ▶ Kliknij, żeby odtworzyć Story
         </button>
+      ) : (
+        needTap && (
+          <button className="btn btn--gold story-unmute" onClick={() => startRef.current()}>
+            🔊 Kliknij, żeby włączyć dźwięk
+          </button>
+        )
       )}
 
-      {meme.music && (
-        <div className="story-music">
-          <span className="story-music-label">🎵 w tle</span>
-          <div className="story-music-frame">
-            <div ref={musicRef} />
-          </div>
-        </div>
-      )}
+      {error && <div className="story-error">{error}</div>}
     </div>
   )
 }

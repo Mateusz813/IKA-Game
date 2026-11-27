@@ -1282,6 +1282,33 @@ textarea {
 
 .story-dot--on { background: rgba(255, 255, 255, 0.9); }
 
+.story-frame {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.story-start {
+  font-size: min(3vw, 4.4vh) !important;
+  padding: 2vh 3.4vw !important;
+  bottom: auto !important;
+  top: 50%;
+  transform: translate(-50%, -50%) !important;
+}
+
+.story-error {
+  position: absolute;
+  left: 50%;
+  bottom: 3vh;
+  transform: translateX(-50%);
+  z-index: 3;
+  background: rgba(120, 20, 40, 0.85);
+  color: #ffe3e9;
+  font-weight: 800;
+  font-size: min(1.6vw, 2.4vh);
+  padding: 0.8vh 1.6vw;
+  border-radius: 999px;
+}
+
 .story-unmute {
   position: absolute;
   left: 50%;

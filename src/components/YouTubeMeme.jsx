@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { memeCaption } from '../lib/memes.js'
+import { safePlay } from '../lib/media.js'
 import { Avatar } from './common.jsx'
 
 // Oficjalny YouTube IFrame Player API — ładowany raz, dopiero gdy potrzebny
@@ -40,12 +41,12 @@ export function VideoMeme({ meme, who, onDone }) {
       doneRef.current()
     }
     v.muted = false
-    v.play().catch((e) => {
+    safePlay(v).catch((e) => {
       if (e?.name === 'AbortError') return // przerwane pauzą (np. ponowny montaż) — nie błąd
       if (e?.name !== 'NotAllowedError') return close()
       // przeglądarka zablokowała dźwięk — grajmy chociaż obraz
       v.muted = true
-      v.play().catch(() => {})
+      safePlay(v).catch(() => {})
     })
     v.addEventListener('ended', close)
     v.addEventListener('error', close)

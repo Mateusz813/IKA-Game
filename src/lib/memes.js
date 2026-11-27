@@ -61,7 +61,7 @@ export const MEMES = [
   { id: 'iwona-wiki-3', emoji: '🐴', label: 'Iwona i Wiki 3', video: '/video/iwona-wiki-3.mp4' },
 
   // 🎬 Story — tylko dla Mateusza: 12 scenek po kolei na cały ekran TV,
-  // z przenikaniem (opcjonalnie music: { id, start, volume } — YouTube w rogu)
+  // z płynnym przenikaniem (jeden odtwarzacz — działa też na telewizorach)
   {
     id: 'story',
     emoji: '🎬',
