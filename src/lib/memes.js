@@ -56,6 +56,9 @@ export const MEMES = [
   { id: 'pawel-mati-1', emoji: '🎤', label: 'Paweł i Mati 1', video: '/video/pawel-mati-1.mp4' },
   { id: 'pawel-mati-2', emoji: '💃', label: 'Paweł i Mati 2', video: '/video/pawel-mati-2.mp4' },
   { id: 'pawel-mati-3', emoji: '🔫', label: 'Paweł i Mati 3', video: '/video/pawel-mati-3.mp4' },
+  { id: 'iwona-wiki-1', emoji: '👋', label: 'Iwona i Wiki 1', video: '/video/iwona-wiki-1.mp4' },
+  { id: 'iwona-wiki-2', emoji: '📢', label: 'Iwona i Wiki 2', video: '/video/iwona-wiki-2.mp4' },
+  { id: 'iwona-wiki-3', emoji: '🐴', label: 'Iwona i Wiki 3', video: '/video/iwona-wiki-3.mp4' },
 
   // 🎬 Story — tylko dla Mateusza: 12 scenek po kolei na cały ekran TV,
   // z przenikaniem (opcjonalnie music: { id, start, volume } — YouTube w rogu)
