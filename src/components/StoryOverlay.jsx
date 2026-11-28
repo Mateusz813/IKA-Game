@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { safePlay } from '../lib/media.js'
+import { loadYouTubeApi } from './YouTubeMeme.jsx'
 import { Avatar } from './common.jsx'
 
-// 🎬 Story: jeden film na cały ekran (scenki sklejone z przenikaniami
+// 🎬 Story / TO TEN: jeden film na cały ekran (scenki sklejone z przenikaniami
 // zawczasu — scripts/build-story.py). Jeden plik = zero przerw między
 // scenkami i działa na telewizorach z jednym dekoderem wideo.
+// Opcjonalna muzyka w tle (story.music) gra z małego, widocznego odtwarzacza
+// YouTube w rogu — zasady YouTube nie pozwalają na ukryty odtwarzacz.
 export default function StoryOverlay({ meme, who, onDone }) {
-  const { src, chapters } = meme.story
+  const { src, chapters, music = [], musicVolume = 25 } = meme.story
   const rootRef = useRef(null)
   const videoRef = useRef(null)
+  const musicRef = useRef(null)
   const stopRef = useRef(() => {})
   const startRef = useRef(() => {})
   const doneRef = useRef(onDone)
@@ -21,6 +25,9 @@ export default function StoryOverlay({ meme, who, onDone }) {
   useEffect(() => {
     const v = videoRef.current
     let closed = false
+    let player = null // odtwarzacz muzyki w tle
+    let track = -1 // który utwór z `music` gra
+    let switching = false
     const timers = new Set()
     const later = (fn, ms) => {
       const t = setTimeout(() => {
@@ -30,6 +37,81 @@ export default function StoryOverlay({ meme, who, onDone }) {
       timers.add(t)
     }
 
+    // ——— muzyka w tle ———
+    const trackFor = (sceneIdx) => {
+      let k = -1
+      music.forEach((m, i) => {
+        if (sceneIdx >= m.from) k = i
+      })
+      return k
+    }
+    const fadeMusic = (to, ms, then) => {
+      if (!player?.getVolume) return then?.()
+      let from = 0
+      try {
+        from = player.getVolume()
+      } catch { /* jeszcze nie gotowy */ }
+      const t0 = performance.now()
+      const step = () => {
+        const k = Math.min(1, (performance.now() - t0) / ms)
+        try {
+          player.setVolume(Math.round(from + (to - from) * k))
+        } catch { /* zamknięty */ }
+        if (k < 1) later(step, 40)
+        else then?.()
+      }
+      step()
+    }
+    const playTrack = (k) => {
+      const m = music[k]
+      if (!m || !player?.loadVideoById) return
+      track = k
+      if (switching) return
+      switching = true
+      // płynna zmiana utworu: ściszenie → nowy utwór od `start` → podgłośnienie
+      fadeMusic(0, 700, () => {
+        try {
+          player.loadVideoById({ videoId: m.id, startSeconds: m.start || 0 })
+          player.setVolume(0)
+        } catch { /* ignore */ }
+        later(() => fadeMusic(musicVolume, 900, () => (switching = false)), 400)
+      })
+    }
+    if (music.length) {
+      loadYouTubeApi()
+        .then((YT) => {
+          if (closed || !musicRef.current) return
+          const first = music[Math.max(0, trackFor(0))]
+          track = music.indexOf(first)
+          player = new YT.Player(musicRef.current, {
+            host: 'https://www.youtube-nocookie.com',
+            videoId: first.id,
+            width: '100%',
+            height: '100%',
+            playerVars: {
+              start: first.start || 0,
+              autoplay: 1,
+              controls: 0,
+              disablekb: 1,
+              fs: 0,
+              rel: 0,
+              playsinline: 1,
+              iv_load_policy: 3,
+              origin: window.location.origin,
+            },
+            events: {
+              onReady: (e) => {
+                e.target.unMute()
+                e.target.setVolume(musicVolume)
+                e.target.playVideo()
+              },
+            },
+          })
+        })
+        .catch(() => {})
+    }
+
+    // ——— film ———
     const play = () =>
       safePlay(v)
         .then(() => setNeedStart(false))
@@ -45,6 +127,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
       if (closed) return
       closed = true
       rootRef.current?.classList.add('story--out')
+      fadeMusic(0, 800)
       later(() => doneRef.current(), 900)
     }
     stopRef.current = finish
@@ -52,16 +135,22 @@ export default function StoryOverlay({ meme, who, onDone }) {
       v.muted = false
       setNeedTap(false)
       play()
+      try {
+        player?.unMute()
+        player?.playVideo()
+      } catch { /* ignore */ }
     }
 
-    // która scenka trwa (pasek postępu)
+    // która scenka trwa (pasek postępu + zmiana muzyki)
     const onTime = () => {
       const t = v.currentTime
-      let n = 1
+      let n = 0
       chapters.forEach((start, i) => {
-        if (t >= start) n = i + 1
+        if (t >= start) n = i
       })
-      setScene(n)
+      setScene(n + 1)
+      const k = trackFor(n)
+      if (k >= 0 && k !== track) playTrack(k)
     }
     const onError = () => {
       setError(`Nie udało się odtworzyć filmu (kod ${v.error?.code ?? '?'})`)
@@ -88,8 +177,11 @@ export default function StoryOverlay({ meme, who, onDone }) {
       v.removeEventListener('ended', finish)
       v.removeEventListener('error', onError)
       v.pause()
+      try {
+        player?.destroy()
+      } catch { /* ignore */ }
     }
-  }, [meme, chapters])
+  }, [meme]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="story" ref={rootRef}>
@@ -97,7 +189,8 @@ export default function StoryOverlay({ meme, who, onDone }) {
 
       <div className="story-top">
         <span className="story-badge">
-          🎬 STORY{who ? <> · <Avatar player={who} size="min(2.6vw, 3.6vh)" /> {who.name}</> : null}
+          {meme.emoji} {meme.label.toLocaleUpperCase('pl-PL')}
+          {who ? <> · <Avatar player={who} size="min(2.6vw, 3.6vh)" /> {who.name}</> : null}
         </span>
         <span className="story-progress">
           {chapters.map((_, i) => (
@@ -111,7 +204,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
 
       {needStart ? (
         <button className="btn btn--gold story-unmute story-start" onClick={() => startRef.current()}>
-          ▶ Kliknij, żeby odtworzyć Story
+          ▶ Kliknij, żeby odtworzyć
         </button>
       ) : (
         needTap && (
@@ -119,6 +212,15 @@ export default function StoryOverlay({ meme, who, onDone }) {
             🔊 Kliknij, żeby włączyć dźwięk
           </button>
         )
+      )}
+
+      {music.length > 0 && (
+        <div className="story-music">
+          <span className="story-music-label">🎵 w tle</span>
+          <div className="story-music-frame">
+            <div ref={musicRef} />
+          </div>
+        </div>
       )}
 
       {error && <div className="story-error">{error}</div>}

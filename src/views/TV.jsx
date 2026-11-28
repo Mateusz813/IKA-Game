@@ -7,7 +7,6 @@ import {
   roundLabel,
   modeName,
   winCondition,
-  isSpecialRound,
 } from '../lib/store.jsx'
 import { useFreshAction, serverNow } from '../lib/hooks.js'
 import { sync } from '../lib/sync/index.js'
@@ -24,7 +23,6 @@ import {
 import Board from '../components/Board.jsx'
 import YouTubeMeme, { VideoMeme } from '../components/YouTubeMeme.jsx'
 import StoryOverlay from '../components/StoryOverlay.jsx'
-import { safePlay } from '../lib/media.js'
 import { Logo, Avatar, ConfirmButton, ModeBadge, QRJoin, Spinner } from '../components/common.jsx'
 
 const CELEBRATE = ['win', 'allRevealed']
@@ -32,34 +30,20 @@ const CELEBRATE = ['win', 'allRevealed']
 export default function TV() {
   const { state: s, ready, actions } = useGame()
   useWakeLock()
-  // 💍 runda-niespodzianka Iwony: zamiast zwykłej animacji leci filmik
-  const special = ready && (isSpecialRound(s) || !!s.specialVideo)
-  const celebrate = useFreshAction(
-    CELEBRATE.includes(s.lastAction?.type) && !s.lastAction?.special ? s.lastAction : null,
-    8000
-  )
+  const celebrate = useFreshAction(CELEBRATE.includes(s.lastAction?.type) ? s.lastAction : null, 8000)
   const intro = useFreshAction(s.lastAction?.type === 'gamestart' ? s.lastAction : null, 9000)
   const players = sortedPlayers(s.players)
   // bez graczy zawsze pokazujemy poczekalnię (np. stan po poprzedniej imprezie)
   const phase = ready && !players.length ? 'lobby' : s.status
-  useConfetti(ready && !s.specialVideo && (!!celebrate || phase === 'over'))
+  useConfetti(ready && (!!celebrate || phase === 'over'))
 
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('ika-tv-sound') !== '0')
   const audio = useAudioUnlock()
   const [ytMeme, setYtMeme] = useState(null)
-  useTvSounds(ready ? s.lastAction : null, soundOn, special)
+  useTvSounds(ready ? s.lastAction : null, soundOn)
   const [story, setStory] = useState(null)
   useMemeSound(ready ? s.meme : null, soundOn, setYtMeme, s.players, setStory)
   useReportTvAudio(ready, soundOn ? audio : 'muted', s.tvAudio?.state, actions)
-
-  // runda-niespodzianka w grze — ładujemy filmik zawczasu, żeby ruszył od razu
-  useEffect(() => {
-    if (!special) return
-    const v = document.createElement('video')
-    v.preload = 'auto'
-    v.src = '/video/swiadkowa.mp4'
-    v.load()
-  }, [special])
 
   if (!ready) return <Spinner />
 
@@ -70,7 +54,6 @@ export default function TV() {
           🔇 Kliknij tutaj, żeby włączyć dźwięki gry
         </button>
       )}
-      {s.specialVideo && <SpecialVideoOverlay s={s} actions={actions} />}
       {story && (
         <StoryOverlay
           key={story.ts}
@@ -300,82 +283,6 @@ function GameStartOverlay({ s }) {
   )
 }
 
-// 💍 Filmik „Czy zostaniesz moją świadkową?” — tylko gdy Iwona prowadzi to hasło
-// i przyzna punkty. Odtwórz ponownie / zamknij: z TV albo z telefonu Iwony.
-function SpecialVideoOverlay({ s, actions }) {
-  const ref = useRef(null)
-  const [needTap, setNeedTap] = useState(false)
-  const winner = s.winnerId ? s.players[s.winnerId] : null
-  const nonce = s.specialVideo?.nonce
-
-  useEffect(() => {
-    const v = ref.current
-    if (!v) return
-    v.currentTime = 0
-    v.muted = false
-    safePlay(v)
-      .then(() => setNeedTap(false))
-      .catch((e) => {
-        if (e?.name !== 'NotAllowedError') return // np. przerwane pauzą — nie blokada dźwięku
-        // przeglądarka zablokowała dźwięk — gramy obraz, prosimy o kliknięcie
-        v.muted = true
-        safePlay(v).catch(() => {})
-        setNeedTap(true)
-      })
-  }, [nonce])
-
-  useEffect(() => {
-    const end = Date.now() + 8000
-    const t = setInterval(() => {
-      confetti({
-        particleCount: 10,
-        spread: 120,
-        startVelocity: 22,
-        gravity: 0.55,
-        ticks: 220,
-        colors: ['#ff6b9d', '#ff8fab', '#ffc2d1', '#ff4d84', '#ffffff'],
-        origin: { x: Math.random(), y: Math.random() * 0.3 },
-      })
-      if (Date.now() > end) clearInterval(t)
-    }, 300)
-    return () => clearInterval(t)
-  }, [nonce])
-
-  return (
-    <div className="special-video">
-      <div className="special-video-title">💍 Czy zostaniesz moją świadkową? 💍</div>
-      <video ref={ref} className="special-video-el" src="/video/swiadkowa.mp4" playsInline preload="auto" />
-      <div className="special-video-bar">
-        {winner && (
-          <span className="special-video-who">
-            <Avatar player={winner} size="min(3.6vw, 5vh)" /> {winner.name} 🥹
-          </span>
-        )}
-        {needTap && (
-          <button
-            className="btn btn--gold"
-            onClick={() => {
-              const v = ref.current
-              v.muted = false
-              v.currentTime = 0
-              safePlay(v).catch(() => {})
-              setNeedTap(false)
-            }}
-          >
-            🔊 Włącz dźwięk
-          </button>
-        )}
-        <button className="btn btn--primary" onClick={() => actions.replaySpecial()}>
-          🔁 Jeszcze raz
-        </button>
-        <button className="btn" onClick={() => actions.closeSpecial()}>
-          ✖ Zamknij
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // Wielka animacja końca hasła — ze zwycięzcą albo „wszystkie litery odsłonięte”
 function WinOverlay({ s, winnerId }) {
   const winner = winnerId ? s.players[winnerId] : null
@@ -473,7 +380,8 @@ function useMemeSound(meme, soundOn, showYouTube, players, showStory) {
     if (serverNow() - meme.ts > 8000) return // stare zdarzenia pomijamy
     const senderName = players?.[meme.by]?.name
     if (meme.id === 'story-stop') {
-      if (memeAllowedFor(memeById('story'), senderName)) showStory(null)
+      // zatrzymać może każdy, kto ma dostęp do któregoś z pełnoekranowych filmów
+      if (MEMES.some((m) => m.story && memeAllowedFor(m, senderName))) showStory(null)
       return
     }
     const def = memeById(meme.id)
@@ -504,7 +412,7 @@ function MemeFlash({ meme, players }) {
 }
 
 // Dźwięki sterowane akcjami gry (tylko TV)
-function useTvSounds(lastAction, soundOn, special = false) {
+function useTvSounds(lastAction, soundOn) {
   const lastTs = useRef(0)
   useEffect(() => {
     const a = lastAction
@@ -512,11 +420,10 @@ function useTvSounds(lastAction, soundOn, special = false) {
     lastTs.current = a.ts
     if (serverNow() - a.ts > 4000) return // stare zdarzenia (np. po odświeżeniu) pomijamy
     if (!soundOn) return
-    if (special && CELEBRATE.includes(a.type)) return // filmik ma własny dźwięk
     if (a.type === 'hit') sounds.hit(a.count)
     else if (a.type === 'miss' || a.type === 'wrongSolve') sounds.miss()
     else if (CELEBRATE.includes(a.type) || a.type === 'gameover') sounds.win()
-  }, [lastAction, soundOn, special])
+  }, [lastAction, soundOn])
 }
 
 // ——— Podium na koniec gry ———

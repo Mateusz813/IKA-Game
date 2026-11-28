@@ -141,7 +141,7 @@ function MeMenu({ s, myId, actions, onClose, onPhoto, onRules }) {
             onClick={() => actions.playMeme('story-stop', myId)}
           >
             <span className="dd-emoji">⏹</span>
-            <span className="dd-label">Zatrzymaj Story na TV</span>
+            <span className="dd-label">Zatrzymaj film na TV</span>
           </button>
         )}
         <div className="dd-sep" />

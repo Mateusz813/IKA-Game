@@ -1115,8 +1115,6 @@ textarea {
 .mode-card-name { font-weight: 900; font-size: 16px; color: var(--teal); }
 .mode-card-win { font-size: 13px; font-weight: 700; opacity: 0.85; margin-top: 4px; }
 
-.special-controls { border-color: #ff8fab; background: rgba(255, 107, 157, 0.12); }
-.special-controls h2 { text-align: center; }
 
 /* 🎬 start gry na TV */
 .tv-intro {
@@ -1167,58 +1165,6 @@ textarea {
   gap: 1vw;
   font-size: min(2.4vw, 3.4vh);
   font-weight: 800;
-}
-
-/* 💍 filmik „świadkowa” */
-.special-video {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2vh;
-  background: radial-gradient(ellipse at center, #3d1140, #12081f 75%);
-  animation: fade-in 0.4s;
-}
-
-.special-video-title {
-  font-size: min(4vw, 6vh);
-  font-weight: 900;
-  background: linear-gradient(180deg, #fff 20%, #ff8fab 70%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-align: center;
-}
-
-.special-video-el {
-  width: min(82vw, 128vh);
-  aspect-ratio: 16 / 9;
-  border-radius: 18px;
-  border: 4px solid #ffc2d1;
-  background: #000;
-  box-shadow: 0 0 70px rgba(255, 107, 157, 0.55);
-}
-
-.special-video-bar {
-  display: flex;
-  align-items: center;
-  gap: 1.4vw;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.special-video-bar .btn { font-size: min(1.9vw, 2.8vh); padding: 1.2vh 2vw; }
-
-.special-video-who {
-  display: flex;
-  align-items: center;
-  gap: 0.8vw;
-  font-size: min(2.6vw, 3.8vh);
-  font-weight: 900;
-  color: var(--gold);
 }
 
 /* 🎬 Story — scenki na cały ekran z przenikaniem */
@@ -1326,7 +1272,7 @@ textarea {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
-  opacity: 0.85;
+  opacity: 0;
 }
 
 .story-music-label {

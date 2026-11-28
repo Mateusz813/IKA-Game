@@ -7,7 +7,6 @@ import {
   modeName,
   modeKey,
   winCondition,
-  isSpecialRound,
   isOnline,
 } from '../lib/store.jsx'
 import {
@@ -123,7 +122,6 @@ function PhoneShell({ s, me, myId, actions }) {
   return (
     <div className="page player">
       <PhoneHeader s={s} me={me} myId={myId} actions={actions} />
-      {s.specialVideo && isHost && <SpecialControls actions={actions} />}
       {body}
     </div>
   )
@@ -395,30 +393,12 @@ function HandoverPanel({ s, myId, actions }) {
   )
 }
 
-// 💍 sterowanie filmikiem na TV (telefon Iwony)
-function SpecialControls({ actions }) {
-  return (
-    <section className="panel special-controls">
-      <h2>💍 Filmik leci na telewizorze</h2>
-      <div className="handover-choice">
-        <button className="btn btn--primary btn--big" onClick={() => actions.replaySpecial()}>
-          🔁 Jeszcze raz
-        </button>
-        <button className="btn btn--big" onClick={() => actions.closeSpecial()}>
-          ✖ Zamknij
-        </button>
-      </div>
-    </section>
-  )
-}
-
 // ——— runda (zwykły gracz) ———
 function PlayerPlaying({ s, me, myId, actions }) {
   const [solving, setSolving] = useState(false)
   const myTurn = s.activePlayerId === myId
   const activeName = s.activePlayerId ? s.players[s.activePlayerId]?.name : null
   const host = s.players[s.hostId]
-  const special = isSpecialRound(s)
   const feedback = useFreshAction(s.lastAction, 2600)
   const myFeedback =
     feedback && feedback.playerId === myId && ['hit', 'miss'].includes(feedback.type)
@@ -440,9 +420,7 @@ function PlayerPlaying({ s, me, myId, actions }) {
     <>
       {myTurn ? (
         <div className="status-strip status-strip--turn">
-          {special
-            ? '🎤 TWOJA KOLEJ — kliknij literę! Znasz hasło? Powiedz je na głos 😉'
-            : '🎤 TWOJA KOLEJ — kliknij literę albo 🎯 zgadnij całe hasło!'}
+          🎤 TWOJA KOLEJ — kliknij literę albo 🎯 zgadnij całe hasło!
         </div>
       ) : (
         <div className="status-strip">
@@ -461,19 +439,17 @@ function PlayerPlaying({ s, me, myId, actions }) {
 
       <Board phrase={s.phrase} revealed={s.revealed} lastAction={s.lastAction} size="mini" />
 
-      {!special && (
-        <button
-          className="btn btn--gold btn--big btn--block solve-btn"
-          disabled={blocked || !myTurn}
-          onClick={() => setSolving(true)}
-        >
-          {blocked
-            ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery'
-            : myTurn
-              ? '🎯 Zgadnij hasło (zamiast litery)'
-              : '🎯 Zgadnij hasło — gdy dostaniesz 🎤'}
-        </button>
-      )}
+      <button
+        className="btn btn--gold btn--big btn--block solve-btn"
+        disabled={blocked || !myTurn}
+        onClick={() => setSolving(true)}
+      >
+        {blocked
+          ? '🔒 Pomyłka — spróbujesz po odsłonięciu litery'
+          : myTurn
+            ? '🎯 Zgadnij hasło (zamiast litery)'
+            : '🎯 Zgadnij hasło — gdy dostaniesz 🎤'}
+      </button>
 
       <div className="player-kbd">
         {myFeedback && (

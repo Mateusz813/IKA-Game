@@ -46,7 +46,6 @@ const EMPTY = {
   round: 0,
   meme: null, // { id, by, ts } — soundboard, dźwięk gra na TV
   tvAudio: null, // { state: on|locked|muted|off }
-  specialVideo: null, // { nonce } — filmik „świadkowa” otwarty na TV
   gameId: null, // zmienia się przy pełnym resecie — telefony wracają same tylko do tej samej gry
 }
 
@@ -141,7 +140,6 @@ const ROUND_RESET = {
   used: null,
   activePlayerId: null,
   winnerId: null,
-  specialVideo: null,
 }
 
 // pusta poczekalnia bez graczy — ustawienia trybu zostają
@@ -188,12 +186,6 @@ export const normPhrase = (t) =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^A-Z0-9]/g, '')
-
-// 💍 Niespodzianka: tylko gdy prowadzi Iwona i wpisała to hasło
-const SPECIAL_PHRASE = normPhrase('Czy zostaniesz moją świadkową')
-const isIwona = (name) => normPhrase((name || '').trim().split(/\s+/)[0]) === 'IWONA'
-export const isSpecialRound = (s) =>
-  !!s.phrase && normPhrase(s.phrase) === SPECIAL_PHRASE && isIwona(s.players[s.hostId]?.name)
 
 const clonePlayers = (players) =>
   Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { ...p }]))
@@ -348,8 +340,7 @@ function makeActions(get) {
         players[playerId].score = (players[playerId].score || 0) + count * 10
         u['players/' + playerId + '/score'] = players[playerId].score
         const allShown = phraseLetters(s.phrase).every((L) => L === letter || s.revealed[L])
-        // runda-niespodzianka kończy się wyłącznie decyzją Iwony
-        if (allShown && !isSpecialRound(s)) {
+        if (allShown) {
           const letterAction = u.lastAction
           u = finishRound(s, players, null, 'allRevealed', u)
           u.lastAction = { ...u.lastAction, letter: letterAction.letter, count, by: playerId }
@@ -364,7 +355,6 @@ function makeActions(get) {
       const s = get()
       const me = s.players[playerId]
       if (s.status !== 'playing' || !me || playerId === s.hostId) return 'blocked'
-      if (isSpecialRound(s)) return 'blocked'
       if (s.activePlayerId !== playerId) return 'noturn'
       const revealedCount = Object.keys(s.revealed).length
       if (me.solveBlock != null && me.solveBlock === revealedCount) return 'blocked'
@@ -385,22 +375,7 @@ function makeActions(get) {
     awardPhrase(byId, id) {
       const s = get()
       if (!s.players[id] || s.status !== 'playing' || byId !== s.hostId || id === s.hostId) return
-      const u = finishRound(s, clonePlayers(s.players), id, 'win')
-      if (isSpecialRound(s)) {
-        u.specialVideo = { nonce: now() }
-        u.lastAction.special = true
-      }
-      sync.update(u)
-    },
-
-    // 💍 filmik na TV: odtwórz ponownie / zamknij
-    replaySpecial() {
-      if (!get().specialVideo) return
-      sync.update({ specialVideo: { nonce: now() } })
-    },
-
-    closeSpecial() {
-      sync.update({ specialVideo: null })
+      sync.update(finishRound(s, clonePlayers(s.players), id, 'win'))
     },
 
     // ——— koniec gry ———

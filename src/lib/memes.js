@@ -73,6 +73,29 @@ export const MEMES = [
       chapters: [0, 2.6, 5.2, 8.8, 11.4, 14, 17.6, 20.2, 22.8, 25.4, 28, 31.6],
     },
   },
+
+  // 🤫 tylko dla Mateusza i Iwony
+  { id: 'tajne-1', emoji: '🤫', label: 'Tajne 1', onlyFor: ['MATEUSZ', 'IWONA'], video: '/video/swiadkowa.mp4' },
+
+  // 💍 TO TEN — tylko dla Mateusza i Iwony, zawsze na samym dole listy.
+  // 11 scenek (Pulpit/Swiadkowa 1–11) sklejonych w jeden film jak Story.
+  // music: utwory w tle z YouTube, `from` = numer scenki (od 0), od której gra
+  {
+    id: 'to-ten',
+    emoji: '💍',
+    label: 'TO TEN',
+    onlyFor: ['MATEUSZ', 'IWONA'],
+    pin: 'bottom',
+    story: {
+      src: '/video/to-ten.mp4',
+      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 55.958, 61.417, 70.917, 80.417, 87.833],
+      musicVolume: 25,
+      music: [
+        { id: 'IJTNEkQMYXQ', start: 40, from: 0 }, // A Thousand Years (Orchestral) — scenki 1–8
+        { id: 'NKqTkE74SB4', start: 40, from: 8 }, // Chains of Love (Instrumental) — od scenki 9
+      ],
+    },
+  },
 ]
 
 export const memeById = (id) => MEMES.find((m) => m.id === id)
@@ -87,8 +110,9 @@ const firstName = (name) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
 
-// dźwięki „tylko dla” konkretnej osoby (onlyFor) widzi i puszcza tylko ona
-export const memeAllowedFor = (m, playerName) => !m.onlyFor || firstName(playerName) === m.onlyFor
+// dźwięki „tylko dla” (onlyFor: imię albo lista imion) widzą i puszczają tylko te osoby
+export const memeAllowedFor = (m, playerName) =>
+  !m.onlyFor || [].concat(m.onlyFor).includes(firstName(playerName))
 
 // napis na TV
 export const memeCaption = (m) =>
@@ -96,8 +120,10 @@ export const memeCaption = (m) =>
 
 // kolejność w menu: alfabetycznie, z numerami po kolei (Gej 1, Gej 2…)
 export const sortedMemes = (list) =>
-  [...list].sort((a, b) =>
-    a.label.localeCompare(b.label, 'pl', { numeric: true, sensitivity: 'base' })
+  [...list].sort(
+    (a, b) =>
+      (a.pin === 'bottom') - (b.pin === 'bottom') || // przypięte na sam dół
+      a.label.localeCompare(b.label, 'pl', { numeric: true, sensitivity: 'base' })
   )
 
 // Czy plik istnieje (Vercel i Vite zwracają index.html dla brakujących

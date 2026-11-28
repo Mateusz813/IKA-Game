@@ -14,9 +14,9 @@ Na stronie głównej są 3 opcje: **📺 Telewizor**, **👑 Admin**, **🎮 Gra
 6. **👉 Po rundzie** prowadzący przekazuje prowadzenie — jednym przyciskiem osobie, która zgadła, albo komuś innemu (lub zostaje). Prowadzący może przekazać prowadzenie w każdej chwili, a admin zawsze może zmienić prowadzącego (w trakcie rundy przerywa ją bez zdradzania hasła).
 7. **🏁 Koniec** — TV pokazuje podium; admin klika „🔄 Zagraj jeszcze raz”.
 
-**💍 Niespodzianka** — gdy prowadzi **Iwona** i wpisze hasło „Czy zostaniesz moją świadkową?”, po przyznaniu przez nią punktów na TV leci filmik (`public/video/swiadkowa.mp4`) z przyciskami „Jeszcze raz” / „Zamknij” (na TV i na telefonie Iwony). W tej rundzie nie ma przycisku „Zgadnij hasło” — rundę kończy wyłącznie Iwona. U innych prowadzących to zwykłe hasło.
-
 **🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady, kolejny gracz na tym telefonie; admin ma tam też zmianę prowadzącego, koniec gry i „jeszcze raz”. Nikt nie może usunąć innego gracza. Stara gra (>2 h bez nikogo podłączonego) czyści się sama przy następnym otwarciu.
+
+**Tylko dla wybranych** — część pozycji w menu widzą wyłącznie konkretne osoby (pole `onlyFor`, porównywane z pierwszym imieniem gracza): „🎬 Story” (Mateusz), „🤫 Tajne 1” i „💍 TO TEN” (Mateusz i Iwona; TO TEN zawsze na samym dole listy). Story i TO TEN grają na cały ekran TV jako jeden sklejony film (`scripts/build-story.py`); TO TEN ma muzykę w tle z YouTube (do scenki 8 jeden utwór, od 9 drugi, oba od 0:40) w małym okienku w rogu.
 
 Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
 - plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje),
