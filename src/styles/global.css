@@ -1230,14 +1230,6 @@ textarea {
 
 .story-video--on { opacity: 1; }
 
-.story-start {
-  font-size: min(3vw, 4.4vh) !important;
-  padding: 2vh 3.4vw !important;
-  bottom: auto !important;
-  top: 50%;
-  transform: translate(-50%, -50%) !important;
-}
-
 .story-error {
   position: absolute;
   left: 50%;

@@ -1,7 +1,7 @@
 """Skleja scenki (1.mp4 … N.mp4 albo 01.mp4 …) w jeden film z przenikaniami.
 
 Użycie:
-  python3 scripts/build-story.py WYJSCIE.mp4 FOLDER_ZE_SCENKAMI [--fade 0.4] [--size 640x360]
+  python3 scripts/build-story.py WYJSCIE.mp4 FOLDER_ZE_SCENKAMI [--fade 0.4] [--size 640x360] [--gap 6:1,8:1]
 
 Na koniec wypisuje JSON z długością i `chapters` — początkami scenek w sekundach
 (do wklejenia w src/lib/memes.js). Wymaga ffmpeg w PATH (albo FFMPEG=ścieżka).
@@ -14,6 +14,7 @@ ap.add_argument('src')
 ap.add_argument('--fade', type=float, default=0.4, help='przenikanie w sekundach')
 ap.add_argument('--size', default='640x360', help='rozdzielczość wyjściowa, np. 1920x1080')
 ap.add_argument('--fps', type=int, default=24)
+ap.add_argument('--gap', default='', help='przerwa (s) po scenkach, np. "6:1,8:1" — ostatnia klatka stoi, dźwięk cichnie')
 a = ap.parse_args()
 
 FF = os.environ.get('FFMPEG', 'ffmpeg')
@@ -30,14 +31,19 @@ def video_seconds(path):
 
 
 durs = [video_seconds(os.path.join(a.src, c)) for c in clips]
+gaps = {int(k): float(v) for k, v in (x.split(':') for x in a.gap.split(',') if x)}
 T = a.fade
 inputs, parts = [], []
 for i, (c, d) in enumerate(zip(clips, durs)):
     inputs += ['-i', os.path.join(a.src, c)]
+    g = gaps.get(i + 1, 0)
+    vpad = f',tpad=stop_mode=clone:stop_duration={g}' if g else ''
+    apad = f',apad=pad_dur={g}' if g else ''
     parts.append(f'[{i}:v]trim=0:{d:.4f},setpts=PTS-STARTPTS,fps={a.fps},'
                  f'scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,'
-                 f'setsar=1,format=yuv420p[v{i}]')
-    parts.append(f'[{i}:a]atrim=0:{d:.4f},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo[a{i}]')
+                 f'setsar=1,format=yuv420p{vpad}[v{i}]')
+    parts.append(f'[{i}:a]atrim=0:{d:.4f},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo{apad}[a{i}]')
+    durs[i] = d + g
 
 acc = durs[0]
 vprev, aprev = 'v0', 'a0'

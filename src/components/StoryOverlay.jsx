@@ -19,7 +19,6 @@ export default function StoryOverlay({ meme, who, onDone }) {
   doneRef.current = onDone
   const [scene, setScene] = useState(1)
   const [needTap, setNeedTap] = useState(false) // dźwięk zablokowany — gra wyciszone
-  const [needStart, setNeedStart] = useState(false) // nic nie ruszyło — kliknij ▶
   const [error, setError] = useState(null)
   const [musicOff, setMusicOff] = useState(false) // TV nie uciągnął filmu + muzyki naraz
 
@@ -114,15 +113,13 @@ export default function StoryOverlay({ meme, who, onDone }) {
 
     // ——— film ———
     const play = () =>
-      safePlay(v)
-        .then(() => setNeedStart(false))
-        .catch((e) => {
-          if (e?.name !== 'NotAllowedError') return
-          // bez dźwięku przeglądarka zwykle pozwala — gramy wyciszone
-          v.muted = true
-          setNeedTap(true)
-          safePlay(v).catch(() => setNeedStart(true))
-        })
+      safePlay(v).catch((e) => {
+        if (e?.name !== 'NotAllowedError') return
+        // bez dźwięku przeglądarka zwykle pozwala — gramy wyciszone
+        v.muted = true
+        setNeedTap(true)
+        safePlay(v).catch(() => {})
+      })
 
     const finish = () => {
       if (closed) return
@@ -212,10 +209,15 @@ export default function StoryOverlay({ meme, who, onDone }) {
 
     play()
     watchdog()
-    // telewizor nie ruszył sam — pokaż przycisk ▶
-    later(() => {
-      if (!closed && v.currentTime === 0) setNeedStart(true)
-    }, 3000)
+    // film rusza sam: gdy się doładuje (canplay) albo — gdyby stał — co 2 s ponawiamy start
+    const onCanPlay = () => !closed && v.paused && !v.ended && play()
+    v.addEventListener('canplay', onCanPlay)
+    const kick = () => {
+      if (closed) return
+      if (v.paused && !v.ended && v.currentTime === 0) play()
+      if (v.currentTime === 0) later(kick, 2000)
+    }
+    later(kick, 2000)
 
     const onKey = (e) => e.key === 'Escape' && finish()
     window.addEventListener('keydown', onKey)
@@ -228,6 +230,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
       v.removeEventListener('ended', finish)
       v.removeEventListener('error', onError)
       v.removeEventListener('pause', onPause)
+      v.removeEventListener('canplay', onCanPlay)
       v.pause()
       try {
         player?.destroy()
@@ -254,16 +257,10 @@ export default function StoryOverlay({ meme, who, onDone }) {
         </button>
       </div>
 
-      {needStart ? (
-        <button className="btn btn--gold story-unmute story-start" onClick={() => startRef.current()}>
-          ▶ Kliknij, żeby odtworzyć
+      {needTap && (
+        <button className="btn btn--gold story-unmute" onClick={() => startRef.current()}>
+          🔊 Kliknij, żeby włączyć dźwięk
         </button>
-      ) : (
-        needTap && (
-          <button className="btn btn--gold story-unmute" onClick={() => startRef.current()}>
-            🔊 Kliknij, żeby włączyć dźwięk
-          </button>
-        )
       )}
 
       {music.length > 0 && (

@@ -89,7 +89,7 @@ export const MEMES = [
     pin: 'bottom',
     story: {
       src: '/video/nasza-historia.mp4',
-      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 55.958, 61.417, 70.917, 80.417, 87.833],
+      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 56.958, 62.417, 73.417, 82.917, 90.333],
     },
   },
   // ten sam film bez muzyki (tylko dźwięk scenek)
@@ -101,7 +101,7 @@ export const MEMES = [
     pin: 'bottom',
     story: {
       src: '/video/historia-bez-muzyki.mp4',
-      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 55.958, 61.417, 70.917, 80.417, 87.833],
+      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 56.958, 62.417, 73.417, 82.917, 90.333],
     },
   },
 ]
