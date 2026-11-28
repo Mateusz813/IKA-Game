@@ -1275,6 +1275,23 @@ textarea {
   opacity: 0;
 }
 
+/* TYMCZASOWO do testów (musicHidden): odtwarzacz poza ekranem — nie display:none,
+   bo wtedy część przeglądarek nie uruchamia odtwarzacza */
+.story-music--hidden {
+  position: fixed;
+  left: -10000px;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.story-note {
+  background: rgba(20, 10, 40, 0.8);
+  color: var(--gold);
+}
+
 .story-music-label {
   font-size: 12px;
   font-weight: 800;

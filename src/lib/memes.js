@@ -77,23 +77,31 @@ export const MEMES = [
   // 🤫 tylko dla Mateusza i Iwony
   { id: 'tajne-1', emoji: '🤫', label: 'Tajne 1', onlyFor: ['MATEUSZ', 'IWONA'], video: '/video/swiadkowa.mp4' },
 
-  // 💍 TO TEN — tylko dla Mateusza i Iwony, zawsze na samym dole listy.
-  // 11 scenek (Pulpit/Swiadkowa 1–11) sklejonych w jeden film jak Story.
-  // music: utwory w tle z YouTube, `from` = numer scenki (od 0), od której gra
+  // 💍 Nasza Historia — tylko dla Mateusza i Iwony, zawsze na samym dole listy.
+  // 11 scenek (Pulpit/Swiadkowa 1–11) sklejonych w jeden film jak Story, z muzyką
+  // wmiksowaną w plik (music1 pod scenki 1–8, music2 od scenki 9) — jeden plik,
+  // więc gra na TV bez odtwarzacza YouTube
   {
-    id: 'to-ten',
+    id: 'nasza-historia',
     emoji: '💍',
-    label: 'TO TEN',
+    label: 'Nasza Historia',
     onlyFor: ['MATEUSZ', 'IWONA'],
     pin: 'bottom',
     story: {
-      src: '/video/to-ten.mp4',
+      src: '/video/nasza-historia.mp4',
       chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 55.958, 61.417, 70.917, 80.417, 87.833],
-      musicVolume: 25,
-      music: [
-        { id: 'IJTNEkQMYXQ', start: 40, from: 0 }, // A Thousand Years (Orchestral) — scenki 1–8
-        { id: 'NKqTkE74SB4', start: 40, from: 8 }, // Chains of Love (Instrumental) — od scenki 9
-      ],
+    },
+  },
+  // ten sam film bez muzyki (tylko dźwięk scenek)
+  {
+    id: 'historia-bez-muzyki',
+    emoji: '🎞️',
+    label: 'Historia bez muzyki',
+    onlyFor: ['MATEUSZ', 'IWONA'],
+    pin: 'bottom',
+    story: {
+      src: '/video/historia-bez-muzyki.mp4',
+      chapters: [0, 9.5, 19, 27.458, 39.958, 49.458, 55.958, 61.417, 70.917, 80.417, 87.833],
     },
   },
 ]

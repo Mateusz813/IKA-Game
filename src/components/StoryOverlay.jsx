@@ -3,13 +3,13 @@ import { safePlay } from '../lib/media.js'
 import { loadYouTubeApi } from './YouTubeMeme.jsx'
 import { Avatar } from './common.jsx'
 
-// 🎬 Story / TO TEN: jeden film na cały ekran (scenki sklejone z przenikaniami
+// 🎬 Story / Nasza Historia: jeden film na cały ekran (scenki sklejone z przenikaniami
 // zawczasu — scripts/build-story.py). Jeden plik = zero przerw między
 // scenkami i działa na telewizorach z jednym dekoderem wideo.
 // Opcjonalna muzyka w tle (story.music) gra z małego, widocznego odtwarzacza
 // YouTube w rogu — zasady YouTube nie pozwalają na ukryty odtwarzacz.
 export default function StoryOverlay({ meme, who, onDone }) {
-  const { src, chapters, music = [], musicVolume = 25 } = meme.story
+  const { src, chapters, music = [], musicVolume = 25, musicHidden = false } = meme.story
   const rootRef = useRef(null)
   const videoRef = useRef(null)
   const musicRef = useRef(null)
@@ -21,6 +21,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
   const [needTap, setNeedTap] = useState(false) // dźwięk zablokowany — gra wyciszone
   const [needStart, setNeedStart] = useState(false) // nic nie ruszyło — kliknij ▶
   const [error, setError] = useState(null)
+  const [musicOff, setMusicOff] = useState(false) // TV nie uciągnął filmu + muzyki naraz
 
   useEffect(() => {
     const v = videoRef.current
@@ -156,11 +157,61 @@ export default function StoryOverlay({ meme, who, onDone }) {
       setError(`Nie udało się odtworzyć filmu (kod ${v.error?.code ?? '?'})`)
       later(finish, 4000)
     }
+    // Telewizor z jednym dekoderem: odtwarzacz YouTube (to też wideo) potrafi
+    // zatrzymać nasz film. Wtedy film ma pierwszeństwo — wyłączamy muzykę
+    // i wznawiamy film od miejsca, w którym stanął.
+    const dropMusic = (reason) => {
+      if (!player) return false
+      console.warn('[Story] wyłączam muzykę:', reason, 'readyState', v.readyState, 't', v.currentTime)
+      try {
+        player.destroy()
+      } catch { /* ignore */ }
+      player = null
+      setMusicOff(true)
+      return true
+    }
+    const onPause = () => {
+      // schowana karta: przeglądarka sama pauzuje (np. wyciszone wideo) — to nie konflikt
+      if (closed || v.ended || document.hidden) return
+      if (dropMusic('pause')) later(() => !closed && play(), 250)
+    }
+    let lastT = -1
+    let lastMove = performance.now()
+    const watchdog = () => {
+      if (closed) return
+      const now = performance.now()
+      if (v.currentTime !== lastT) {
+        lastT = v.currentTime
+        lastMove = now
+      } else if (
+        player &&
+        lastT > 0 &&
+        !v.ended &&
+        !v.paused &&
+        !v.seeking &&
+        !document.hidden &&
+        v.readyState >= 3 && // dane są, a obraz stoi — to nie zwykłe doładowywanie
+        now - lastMove > 3000
+      ) {
+        // obraz stanął, a muzyka gra — to samo, tylko bez zdarzenia „pause”
+        dropMusic('stall')
+        const at = v.currentTime
+        try {
+          v.load()
+          v.currentTime = at
+        } catch { /* ignore */ }
+        play()
+        lastMove = now
+      }
+      later(watchdog, 500)
+    }
     v.addEventListener('timeupdate', onTime)
     v.addEventListener('ended', finish)
     v.addEventListener('error', onError)
+    v.addEventListener('pause', onPause)
 
     play()
+    watchdog()
     // telewizor nie ruszył sam — pokaż przycisk ▶
     later(() => {
       if (!closed && v.currentTime === 0) setNeedStart(true)
@@ -176,6 +227,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('ended', finish)
       v.removeEventListener('error', onError)
+      v.removeEventListener('pause', onPause)
       v.pause()
       try {
         player?.destroy()
@@ -215,7 +267,7 @@ export default function StoryOverlay({ meme, who, onDone }) {
       )}
 
       {music.length > 0 && (
-        <div className="story-music">
+        <div className={`story-music ${musicHidden ? 'story-music--hidden' : ''}`}>
           <span className="story-music-label">🎵 w tle</span>
           <div className="story-music-frame">
             <div ref={musicRef} />
@@ -223,6 +275,11 @@ export default function StoryOverlay({ meme, who, onDone }) {
         </div>
       )}
 
+      {musicOff && (
+        <div className="story-error story-note">
+          🎵 Ten telewizor nie gra filmu i muzyki z YouTube naraz — gra sam film
+        </div>
+      )}
       {error && <div className="story-error">{error}</div>}
     </div>
   )

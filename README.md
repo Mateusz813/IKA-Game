@@ -16,7 +16,7 @@ Na stronie głównej są 3 opcje: **📺 Telewizor**, **👑 Admin**, **🎮 Gra
 
 **🔊 Menu pod avatarem** — dotknięcie swojego avatara u góry telefonu otwiera menu: memiczne dźwięki grane na TV, zmiana zdjęcia, zasady, kolejny gracz na tym telefonie; admin ma tam też zmianę prowadzącego, koniec gry i „jeszcze raz”. Nikt nie może usunąć innego gracza. Stara gra (>2 h bez nikogo podłączonego) czyści się sama przy następnym otwarciu.
 
-**Tylko dla wybranych** — część pozycji w menu widzą wyłącznie konkretne osoby (pole `onlyFor`, porównywane z pierwszym imieniem gracza): „🎬 Story” (Mateusz), „🤫 Tajne 1” i „💍 TO TEN” (Mateusz i Iwona; TO TEN zawsze na samym dole listy). Story i TO TEN grają na cały ekran TV jako jeden sklejony film (`scripts/build-story.py`); TO TEN ma muzykę w tle z YouTube (do scenki 8 jeden utwór, od 9 drugi, oba od 0:40) w małym okienku w rogu.
+**Tylko dla wybranych** — część pozycji w menu widzą wyłącznie konkretne osoby (pole `onlyFor`, porównywane z pierwszym imieniem gracza): „🎬 Story” (Mateusz), „🤫 Tajne 1” i „💍 Nasza Historia” (Mateusz i Iwona; Nasza Historia zawsze na samym dole listy). Story i Nasza Historia grają na cały ekran TV jako jeden sklejony film (`scripts/build-story.py`); Nasza Historia ma muzykę wmiksowaną w plik filmu (do scenki 8 jeden utwór, od 9 drugi).
 
 Nowy dźwięk = jedna linijka w `src/lib/memes.js`:
 - plik: `{ src: '/sounds/x.mp3', start, dur }` (fragment w sekundach; `optional: true` — przycisk pojawi się dopiero, gdy plik istnieje),
